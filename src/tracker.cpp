@@ -302,6 +302,7 @@ vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame, bool debug=f
         cv2_find_counter_time, cv2_sobel_time, effect_image_time;
 
     cv::Size target_size(640, 480);
+    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(3, 3));
 
     auto effect_start = high_resolution_clock::now();
 
@@ -318,10 +319,6 @@ vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame, bool debug=f
     );
     roi_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t2).count());
 
-    // 高斯模糊去噪
-    cv::Mat bulred;
-    GaussianBlur(roi_frame, bulred, cv::Size(5, 5), 1.5);
-
     // // 3. 灰度转换
     // auto t3 = high_resolution_clock::now();
     // cv::Mat frame_gray;
@@ -333,7 +330,7 @@ vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame, bool debug=f
     cv::Mat mask_b, mask_g, mask_r, mask;
     cv::Mat diff_b, diff_g, diff_r;
 
-    cv::split(bulred, frame_channels);
+    cv::split(roi_frame, frame_channels);
     cv::split(blank_rect, blank_channels);
     cv::absdiff(blank_channels[0], frame_channels[0], diff_b);
     cv::absdiff(blank_channels[1], frame_channels[1], diff_g);
@@ -358,10 +355,9 @@ vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame, bool debug=f
 
     // 6. 形态学操作
     auto t7 = high_resolution_clock::now();
-    cv::Mat fg_mask, eroded;
-    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(5, 5));
-    // GaussianBlur(mask, bulred, cv::Size(5, 5), 0);
-    cv::erode(mask, eroded, kernel, cv::Point(-1, -1), 1);
+    cv::Mat fg_mask, bulred, eroded;
+    GaussianBlur(mask, bulred, cv::Size(5, 5), 0);
+    cv::erode(bulred, eroded, kernel, cv::Point(-1, -1), 1);
     cv2_erode_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t7).count());
 
     auto t8 = high_resolution_clock::now();
@@ -390,7 +386,7 @@ vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame, bool debug=f
     frame_logs.push_back(cv::format("Found %zu contours", contours.size()));  // add log
 
     if(debug) {
-        vector<cv::Mat> tmp_debug_imgs = {roi_frame, bulred, diff_b, diff_g, diff_r, mask, eroded, fg_mask};
+        vector<cv::Mat> tmp_debug_imgs = {roi_frame, diff_b, diff_g, diff_r, mask, bulred, eroded, fg_mask};
         cv::Mat debug_img = createGridImage(tmp_debug_imgs, 3, 3);
         cv_debug_images.push_back(debug_img);
         cv_debug_names.push_back(cv::format("%d.jpg", frame_count));
