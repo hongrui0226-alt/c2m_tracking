@@ -59,6 +59,7 @@ struct FileInfo {
     bool is_merged = false;
     bool is_separated = false;
     TrackXY xy;
+    TrackXY motion;
 };
 
 bool endsWith(const std::string& str, const std::string& suffix);
@@ -172,7 +173,7 @@ private:
         cv::Scalar color_untracked = cv::Scalar(0, 0, 255);
         int thickness = 1;
     } visualize_config;
-    int log_put_start_x = 160;  // 日志文本起始位置
+    int log_put_start_x = 10;  // 日志文本起始位置
     int log_put_start_y = 10;  // 日志文本起始位置
     
 

@@ -51,31 +51,46 @@ std::vector<int> findLongestConsSeg(const std::vector<int>& a) {
                            a.begin() + max_start + max_length);
 }
 
-TrackXY extractCoordinates(std::string_view filename) {
-    // 定位关键字符位置
-    auto start = filename.find("_(");
-    if (start == std::string_view::npos) 
-        return {0, 0};
-    start += 2;  // 跳过 "_("
-    
-    auto comma = filename.find(',', start);
-    if (comma == std::string_view::npos || comma == start)
-        return {0, 0};
-    
-    auto end = filename.find(')', comma);
-    if (end == std::string_view::npos || end == comma + 1)
-        return {0, 0};
+std::array<TrackXY, 2> extractCoordinates(std::string_view filename) {
+    std::array<TrackXY, 2> result = {{ {0, 0}, {0, 0} }};
+    std::size_t pos = 0;
 
-    // 提取数字部分
-    std::string_view x_str = filename.substr(start, comma - start);
-    std::string_view y_str = filename.substr(comma + 1, end - comma - 1);
+    // 提取第一个坐标对
+    pos = filename.find("_(", pos);
+    if (pos == std::string_view::npos) return result;
+    pos += 2;  // 跳过 "_("
 
-    // 高效转换整数
-    TrackXY result;
-    if (std::from_chars(x_str.data(), x_str.data() + x_str.size(), result[0]).ec != std::errc{})
-        return {0, 0};
-    if (std::from_chars(y_str.data(), y_str.data() + y_str.size(), result[1]).ec != std::errc{})
-        return {0, 0};
+    auto comma1 = filename.find(',', pos);
+    auto end1 = filename.find(')', comma1);
+    if (comma1 == std::string_view::npos || end1 == std::string_view::npos || end1 == comma1 + 1)
+        return result;
+
+    std::string_view x1_str = filename.substr(pos, comma1 - pos);
+    std::string_view y1_str = filename.substr(comma1 + 1, end1 - comma1 - 1);
+
+    if (std::from_chars(x1_str.data(), x1_str.data() + x1_str.size(), result[0][0]).ec != std::errc{})
+        return result;
+    if (std::from_chars(y1_str.data(), y1_str.data() + y1_str.size(), result[0][1]).ec != std::errc{})
+        return result;
+
+    // 提取第二个坐标对
+    pos = end1 + 1;  // 跳过 ")_"
+    pos = filename.find("_(", pos);
+    if (pos == std::string_view::npos) return result;
+    pos += 2;  // 跳过 "_("
+
+    auto comma2 = filename.find(',', pos);
+    auto end2 = filename.find(')', comma2);
+    if (comma2 == std::string_view::npos || end2 == std::string_view::npos || end2 == comma2 + 1)
+        return result;
+
+    std::string_view x2_str = filename.substr(pos, comma2 - pos);
+    std::string_view y2_str = filename.substr(comma2 + 1, end2 - comma2 - 1);
+
+    if (std::from_chars(x2_str.data(), x2_str.data() + x2_str.size(), result[1][0]).ec != std::errc{})
+        return result;
+    if (std::from_chars(y2_str.data(), y2_str.data() + y2_str.size(), result[1][1]).ec != std::errc{})
+        return result;
 
     return result;
 }
@@ -93,7 +108,9 @@ FileInfo parse_file_info(const string& name) {
     
     info.is_merged = endsWith(name, "_m.png");
     info.is_separated = name.find("state(2)") != string::npos;
-    info.xy = extractCoordinates(name);
+    auto coords = extractCoordinates(name);
+    info.xy = coords[0];
+    info.motion = coords[1];
     
     return info;
 }
@@ -655,7 +672,8 @@ Tracker::occlusion_spilt(const vector<string>& name_list, bool color_similar = t
             // Match
             vector<TrackXY> tmp_xy_1, xy_1, xy_2;
             for (const auto& info : multi_occlu_files[id]) {
-                tmp_xy_1.push_back(info.xy);
+                TrackXY pred_xy = {info.xy[0]+ info.motion[0], info.xy[1]+ info.motion[1]};
+                tmp_xy_1.push_back(pred_xy);
             }
             for (const auto& index : tmp_results) {
                 xy_1.push_back(tmp_xy_1[index]);
@@ -946,8 +964,8 @@ void Tracker::tracking_group(const cv::Mat& frame,
             // update imgs to save
             img2save[id].images.push_back(current_canvas.clone());
             img2save[id].names.push_back(
-                cv::format("%d_(%d,%d)_area(%.1f)_state(%d).png", 
-                        frame_count, xy[0], xy[1], areas, state)
+                cv::format("%d_(%d,%d)_(%d,%d)_area(%.1f)_state(%d).png", 
+                        frame_count, xy[0], xy[1], motion[0], motion[1], areas, state)
             );
 
             // add frame log
@@ -974,8 +992,8 @@ void Tracker::tracking_group(const cv::Mat& frame,
 
                 img2save[info.id].images.push_back(info.current_canvas);
                 img2save[info.id].names.push_back(
-                    cv::format("%d_(%d,%d)_area(%.1f)_state(%d).png", 
-                            frame_count, info.xy[0], info.xy[1], info.areas, info.state)
+                    cv::format("%d_(%d,%d)_(%d,%d)_area(%.1f)_state(%d).png", 
+                            frame_count, info.xy[0], info.xy[1], init_motion[0], init_motion[1], info.areas, info.state)
                 );
 
                 frame_logs.push_back(
@@ -1102,8 +1120,8 @@ void Tracker::tracking_group(const cv::Mat& frame,
         // update imgs to save
         img2save[id].images.push_back(current_canvas);
         img2save[id].names.push_back(
-            cv::format("%d_(%d,%d)_area(%.1f)_state(%d).png", 
-                    frame_count, xy[0], xy[1], areas, state)
+            cv::format("%d_(%d,%d)_(%d,%d)_area(%.1f)_state(%d).png", 
+                    frame_count, xy[0], xy[1], motion[0], motion[1], areas, state)
         );
     }
 
@@ -1157,8 +1175,8 @@ void Tracker::tracking_group(const cv::Mat& frame,
             // update imgs to save
             img2save[id].images.push_back(current_canvas);
             img2save[id].names.push_back(
-                cv::format("%d_(%d,%d)_area(%.1f)_state(%d).png", 
-                        frame_count, xy[0], xy[1], areas, state)
+                cv::format("%d_(%d,%d)_(%d,%d)_area(%.1f)_state(%d).png", 
+                        frame_count, xy[0], xy[1], motion[0], motion[1], areas, state)
             );
         }  // sec_unmatched_a  和  unmatched_a 命名不一致的问题
 
@@ -1480,7 +1498,7 @@ void Tracker::tracking_group(const cv::Mat& frame,
                 continue;
             }
 
-            TrackXY motion = {static_cast<int>(-(vaild_threshold - xy[0]) * 0.05 - 20), 0};
+            TrackXY motion = {static_cast<int>(-(vaild_threshold - xy[0]) * 0.05 - 35), 0};
             current_frame_info[idx].motion = motion;
             current_frame_info[idx].id = current_frame_info[min_idx].id;
 
@@ -1498,8 +1516,9 @@ void Tracker::tracking_group(const cv::Mat& frame,
 
         img2save[current_frame_info[idx].id].images.push_back(current_frame_info[idx].current_canvas);
         img2save[current_frame_info[idx].id].names.push_back(
-            cv::format("%d_(%d,%d)_area(%.1f)_state(%d).png", 
+            cv::format("%d_(%d,%d)_(%d,%d)_area(%.1f)_state(%d).png", 
                     frame_count, xy[0], xy[1], 
+                    current_frame_info[idx].motion[0], current_frame_info[idx].motion[1],
                     current_frame_info[idx].areas, 
                     current_frame_info[idx].state)
         );
