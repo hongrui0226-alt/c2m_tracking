@@ -7,8 +7,10 @@ from utils.common import resize_frame, binarize_image,background_subtraction, ge
 
 # --------------------------config--------------------------
 # 指定图像帧所在目录
-frame_path = "./data/104/zhaopian_big"
-background_path = "./data/104/frame_id195.jpg"
+# frame_path = "./data/104/zhaopian_big"
+# background_path = "./data/104/frame_id19.jpg"
+frame_path = "./data/20250117/60small_3"
+background_path = "./data/20250117/frame_id240.jpg"
 
 bboxes_filename = os.path.join(frame_path, 'saved_bboxes1.json') # bboxes 保存的文件，如果存在则直接使用，不会 selectROI
 
@@ -18,7 +20,7 @@ frame_delay = 1000 // fps  # 计算每帧之间的延迟时间（毫秒）
 scale = 0.5  # 缩小到原图的 50%
 interval = 0    # 帧处理间隔，0 为不间隔处理
 
-tracker_colors_list = generate_distinct_colors(10)  # 生成10种框的颜色
+tracker_colors_list = generate_distinct_colors(30)  # 生成10种框的颜色
 # --------------------------config--------------------------
 
 frame_files = get_image_files(frame_path)
