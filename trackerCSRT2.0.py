@@ -1,16 +1,16 @@
-
 # Channel and Spatial Reliability Tracker
 
 import cv2
 import time
 import os
-from utils.common import natural_sort_key, resize_frame, binarize_image,background_subtraction, get_image_files, generate_distinct_colors, save_bboxes,load_bboxes
+from utils.common import resize_frame, binarize_image,background_subtraction, get_image_files, generate_distinct_colors, save_bboxes,load_bboxes
 
 # --------------------------config--------------------------
 # 指定图像帧所在目录
-frame_path = "./data/104/zhaopian_small"
+frame_path = "./data/104/zhaopian_big"
 background_path = "./data/104/frame_id195.jpg"
-bboxes_filename = os.path.join(frame_path, 'saved_bboxes1.json') # bbox保存的文件
+
+bboxes_filename = os.path.join(frame_path, 'saved_bboxes1.json') # bboxes 保存的文件，如果存在则直接使用，不会 selectROI
 
 # 设置帧率（每秒播放的帧数）
 fps = 1  # 可以根据需要调整，数值越小播放越慢
@@ -18,7 +18,7 @@ frame_delay = 1000 // fps  # 计算每帧之间的延迟时间（毫秒）
 scale = 0.5  # 缩小到原图的 50%
 interval = 0    # 帧处理间隔，0 为不间隔处理
 
-tracker_colors_list = generate_distinct_colors(10)  # 生成30种框的颜色
+tracker_colors_list = generate_distinct_colors(10)  # 生成10种框的颜色
 # --------------------------config--------------------------
 
 frame_files = get_image_files(frame_path)
@@ -36,7 +36,7 @@ first_frame_resized = resize_frame(first_frame, scale)
 first_frame_subtraction = background_subtraction(first_frame, background)
 first_frame_binarized = binarize_image(first_frame_subtraction, method='global', threshold_value=1, color_mode='channel_max')
 
-cv2.imshow('first_frame_binarized', resize_frame(first_frame_binarized, scale))
+cv2.imshow('frame_binarized', resize_frame(first_frame_binarized, scale))
 bboxes = []
 multi_tracker = []
 tracker_colors = {}
@@ -84,7 +84,16 @@ for bbox in bboxes:
     # multi_tracker.add(cv2.legacy.TrackerBoosting_create(), first_frame, bbox) #Nice
 
 cv2.destroyWindow('Select object')  # 关闭选择窗口
-cv2.destroyWindow('first_frame_binarized')  # 关闭选择窗口
+# cv2.destroyWindow('frame_binarized')  # 关闭选择窗口
+
+ # 绘制追踪框
+for tracker, box in zip(multi_tracker, bboxes):
+    (x, y, w, h) = [int(v) for v in box]
+    color = tracker_colors.get(tracker, (0, 0, 0))  # 默认黑色
+    cv2.rectangle(first_frame, (x, y), (x + w, y + h), color, 2)
+cv2.imshow('MultiTracker', resize_frame(first_frame, scale))
+key = cv2.waitKey(0)
+
 
 i = 0
 
@@ -134,5 +143,3 @@ for frame_path in frame_files:
         break
 
 cv2.destroyAllWindows()
-
-
