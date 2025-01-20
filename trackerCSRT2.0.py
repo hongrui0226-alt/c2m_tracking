@@ -228,3 +228,5 @@ if __name__ == "__main__":
 
     main(FRAME_PATH, BACKGROUND_PATH, BBOXES_FILENAME, FPS, SCALE, INTERVAL,
          MAX_COLORS)
+
+         
