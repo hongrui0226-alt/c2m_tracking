@@ -89,15 +89,6 @@ def initialize_object_trackers(frame, bboxes, max_colors):
         current_color = tracker_colors_list[len(object_trackers) - 1]
         tracker_color_map[tracker] = current_color
 
-        # # Alternative trackers for each selected target area
-        # multi_tracker.add(cv2.legacy.TrackerKCF_create(), first_frame, bbox)
-        # multi_tracker.add(cv2.legacy.TrackerMIL_create(), first_frame, bbox)
-        # multi_tracker.add(cv2.legacy.TrackerTLD_create(), first_frame, bbox)
-        # multi_tracker.add(cv2.legacy.TrackerMOSSE_create(), first_frame, bbox)
-        # multi_tracker.add(cv2.legacy.TrackerCSRT_create(), first_frame, bbox) # Nice
-        # multi_tracker.add(cv2.legacy.TrackerMedianFlow_create(), first_frame, bbox)
-        # multi_tracker.add(cv2.legacy.TrackerBoosting_create(), first_frame, bbox) #Nice
-
     return object_trackers, tracker_color_map
 
 
@@ -228,7 +219,7 @@ def main(frame_path, background_path, bboxes_filename, fps, scale, interval,
 if __name__ == "__main__":
     FRAME_PATH = "./data/20250117/60small_2"  # directory of image frames
     BACKGROUND_PATH = "./data/20250117/frame_id240.jpg"  # directory of background frames
-    BBOXES_FILENAME = 'saved_bboxes1.json'  # *Important*: bboxes save file, if exists, use directly, no selectROI
+    BBOXES_FILENAME = 'saved_bboxes2.json'  # *Important*: bboxes save file, if exists, use directly, no selectROI
 
     FPS = 1  # Set frame rate (frames per second), smaller values play slower
     SCALE = 0.5  # Resize to 50% of original size

@@ -1,4 +1,4 @@
-# C2M_Tracking
+# Channel and Spatial Reliability Tracker (CSRT) 2.0
 
 ## Overview
 `trackerCSRT2.0.py` is an advanced object tracking script using OpenCV's Channel and Spatial Reliability Tracker (CSRT). This script provides a robust multi-object tracking solution with preprocessing, interactive object selection, and visualization capabilities.
