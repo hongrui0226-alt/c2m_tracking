@@ -967,7 +967,13 @@ void Tracker::save_results(bool save_error=true) {
 }
 
 void Tracker::post_process() {
+    vector<int> nonused_ids;
+
     for (const auto& [id, data] : img2save) {
+        if (data.images.empty()) {
+            std::cerr << "Error: img2save-id"<< id <<" is empty or invalid!" << std::endl;
+            continue;
+        }
         size_t real_length = data.images.size();
         size_t index_begin, index_end;
         size_t pos = data.names[0].find("_");
@@ -1019,12 +1025,12 @@ void Tracker::post_process() {
                 auto [obj1_list, obj2_list, merging_list] = occlusion_spilt(data.names, true);
                 for (const auto& name : obj1_list) {
                     auto pos = std::find(data.names.begin(), data.names.end(), name);
-                    img2save[id_1].images.push_back(data.images[pos - data.names.begin()]);
+                    img2save[id_1].images.push_back(data.images[pos - data.names.begin()].clone());
                     img2save[id_1].names.push_back(name);
                 }
                 for (const auto& name : obj2_list) {
                     auto pos = std::find(data.names.begin(), data.names.end(), name);
-                    img2save[id_2].images.push_back(data.images[pos - data.names.begin()]);
+                    img2save[id_2].images.push_back(data.images[pos - data.names.begin()].clone());
                     img2save[id_2].names.push_back(name);
                 }
 
@@ -1051,29 +1057,55 @@ void Tracker::post_process() {
                 }
                 for (const auto& name : obj1_list) {
                     auto pos = std::find(data.names.begin(), data.names.end(), name);
-                    img2save[id_1].images.push_back(data.images[pos - data.names.begin()]);
+                    img2save[id_1].images.push_back(data.images[pos - data.names.begin()].clone());
                     img2save[id_1].names.push_back(name);
                 }
                 for (const auto& name : obj2_list) {
                     auto pos = std::find(data.names.begin(), data.names.end(), name);
-                    img2save[id_2].images.push_back(data.images[pos - data.names.begin()]);
+                    img2save[id_2].images.push_back(data.images[pos - data.names.begin()].clone());
                     img2save[id_2].names.push_back(name);
                 }
             }
 
             // 删除这组遮挡的id内容
-            img2save.erase(id);
-
+            // img2save.erase(id);
+            nonused_ids.push_back(id);
         }
+    }
+    // // 安全删除方法
+    // auto it = img2save.begin();
+    // while (it != img2save.end()) {
+    //     if (std::find(nonused_ids.begin(), nonused_ids.end(), it->first) != nonused_ids.end()) {
+    //         // erase返回下一个有效迭代器，避免迭代器失效
+    //         it = img2save.erase(it);
+    //     } else {
+    //         ++it;
+    //     }
+    // }
+}
+
+void Tracker::setOutputFolder(const string& path) {
+    output_image_folder = path;
+    result_dir = output_image_folder + "/result";
+    visualize_dir = output_image_folder + "/visualize";
+
+    vector<std::string> dirs_to_create = {
+        result_dir, visualize_dir
+    };
+    
+    for (const auto& dir : dirs_to_create) {
+        fs::create_directories(dir);
     }
 }
 
 void Tracker::reset() {
     // 重置追踪器状态
+    lock_guard<mutex> lock(mtx);
     detected_flag = false;
     track_over_flag = false;
     first_frame_flag = true;
     undetected_frame_count = 0;
+    invaild_num = 5;
     
     img2save.clear();
     last_frame_xy.clear();
@@ -1096,13 +1128,13 @@ void Tracker::reset() {
     // detected_flag、track_over_flag、tracked_id 重置
     // 传回有效数据，把数据交给server send处理，这里可能要注意数据结构以及处理过程中的数据保存
 
-void Tracker::track(const cv::Mat& frame) {
+void Tracker::track(const cv::Mat& frame, bool visualize, bool save) {
     if (detected_flag) {  // 检测到有效帧后
         vector<TrackedData> cv_res = cv_process_frame(frame);
         
         if (cv_res.size() > 0) {
             // 检测到目标后，再执行tracking group
-            tracking_group(frame, cv_res, true, true);
+            tracking_group(frame, cv_res, visualize, save);
             undetected_frame_count = 0;
             cout << "出现目标" << cv_res.size() << endl;
         }
@@ -1134,7 +1166,7 @@ void Tracker::track(const cv::Mat& frame) {
             );
 
             vector<TrackedData> cv_res = cv_process_frame(frame);
-            tracking_group(frame, cv_res, true, true);
+            tracking_group(frame, cv_res, visualize, save);
             cout << "检测到有效帧" << endl;
         }
         else {
@@ -1202,7 +1234,7 @@ void Tracker::track_video(const string& video_path) {
 
     auto start = std::chrono::high_resolution_clock::now();
     for (const auto& frame : frames) {
-        track(frame);
+        track(frame, true, true);
         if (track_over_flag) break;
     }
     auto end = std::chrono::high_resolution_clock::now();

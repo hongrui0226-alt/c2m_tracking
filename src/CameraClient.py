@@ -5,6 +5,13 @@ import numpy as np
 import os
 import pickle  # 用于发送请求数据
 from concurrent.futures import ThreadPoolExecutor
+import logging
+from typing import Any, Optional, Tuple
+import time
+
+# 配置日志
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # 定义ImageData类，对应C++中的ImageData结构
 class ImageData:
@@ -83,59 +90,190 @@ def deserialize_map(data):
     return result
 
 # 通过socket发送请求并接收数据
-def send_request_and_receive_data(server_ip, server_port, request_data):
-    # 创建socket
-    sockfd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    if sockfd is None:
-        print("创建socket失败")
-        return None
+# def send_request_and_receive_data(server_ip, server_port, request_data):
+#     # 创建socket
+#     sockfd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+#     if sockfd is None:
+#         print("创建socket失败")
+#         return None
     
-    try:
-        # 连接到服务器
-        sockfd.connect((server_ip, server_port))
-        print(f"已连接到服务器 {server_ip}:{server_port}")
+#     try:
+#         # 连接到服务器
+#         sockfd.connect((server_ip, server_port))
+#         print(f"已连接到服务器 {server_ip}:{server_port}")
         
-        # 发送请求数据（这里使用pickle序列化请求）
-        request_packed = pickle.dumps(request_data)
-        request_size = len(request_packed)
+#         # 发送请求数据（这里使用pickle序列化请求）
+#         request_packed = pickle.dumps(request_data)
+#         request_size = len(request_packed)
         
-        # 发送请求大小
-        sockfd.sendall(struct.pack('Q', request_size))
-        # 发送请求数据
-        sockfd.sendall(request_packed)
-        print(f"已发送请求，大小: {request_size} 字节")
+#         # 发送请求大小
+#         sockfd.sendall(struct.pack('Q', request_size))
+#         # 发送请求数据
+#         sockfd.sendall(request_packed)
+#         print(f"已发送请求，大小: {request_size} 字节")
         
-        # 接收数据大小
-        data_size_packed = sockfd.recv(struct.calcsize('Q'))
-        if len(data_size_packed) != struct.calcsize('Q'):
-            print("接收数据大小失败")
-            sockfd.close()
-            return None
+#         # 接收数据大小
+#         data_size_packed = sockfd.recv(struct.calcsize('Q'))
+#         if len(data_size_packed) != struct.calcsize('Q'):
+#             print("接收数据大小失败")
+#             sockfd.close()
+#             return None
         
-        data_size = struct.unpack('Q', data_size_packed)[0]
-        print(f"即将接收数据，大小: {data_size} 字节")
+#         data_size = struct.unpack('Q', data_size_packed)[0]
+#         print(f"即将接收数据，大小: {data_size} 字节")
         
-        # 接收数据
-        received_data = b''
-        remaining = data_size
-        while remaining > 0:
-            chunk = sockfd.recv(min(4096, remaining))
-            if not chunk:
-                print("接收数据失败")
-                sockfd.close()
+#         # 接收数据
+#         received_data = b''
+#         remaining = data_size
+#         while remaining > 0:
+#             chunk = sockfd.recv(min(4096, remaining))
+#             if not chunk:
+#                 print("接收数据失败")
+#                 sockfd.close()
+#                 return None
+            
+#             received_data += chunk
+#             remaining -= len(chunk)
+        
+#         sockfd.close()
+#         return received_data
+    
+#     except Exception as e:
+#         print(f"通信时发生错误: {e}")
+#         if 'sockfd' in locals():
+#             sockfd.close()
+#         return None
+
+def send_request_and_receive_data(
+    server_ip: str,
+    server_port: int,
+    request_data: Any,
+    max_retries: int = 3,
+    timeout: float = 15.0,
+    buffer_size: int = 16384
+) -> Optional[bytes]:
+    """
+    发送请求到服务器并接收响应数据，包含完整的错误处理和重试机制
+    
+    参数:
+        server_ip: 服务器IP地址
+        server_port: 服务器端口号
+        request_data: 要发送的请求数据（支持任意可pickle序列化的对象）
+        max_retries: 最大重试次数，默认为3次
+        timeout: 连接和接收超时时间（秒），默认为15秒
+        buffer_size: 接收数据的缓冲区大小（字节），默认为16KB
+    
+    返回:
+        接收到的二进制数据，若失败则返回None
+    """
+    for attempt in range(max_retries):
+        sockfd = None
+        try:
+            # 创建TCP socket
+            sockfd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            if not sockfd:
+                logger.error("创建socket失败")
                 return None
             
-            received_data += chunk
-            remaining -= len(chunk)
-        
-        sockfd.close()
-        return received_data
+            # 配置socket选项
+            sockfd.settimeout(timeout)  # 设置整体超时
+            # 启用TCP保活机制，防止网络设备断开空闲连接
+            sockfd.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            sockfd.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 60)    # 60秒无数据则发送保活包
+            sockfd.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 10)  # 保活包间隔10秒
+            sockfd.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)     # 3次保活失败则断开
+            
+            # 连接到服务器
+            logger.info(f"尝试连接到服务器 {server_ip}:{server_port} (尝试 {attempt+1}/{max_retries})")
+            sockfd.connect((server_ip, server_port))
+            logger.info(f"成功连接到服务器 {server_ip}:{server_port}")
+            
+            # 序列化请求数据
+            try:
+                request_packed = pickle.dumps(request_data)
+            except Exception as e:
+                logger.error(f"请求数据序列化失败: {e}")
+                return None
+            
+            request_size = len(request_packed)
+            
+            # 发送请求大小和数据
+            logger.debug(f"发送请求大小: {request_size} 字节")
+            sockfd.sendall(struct.pack('Q', request_size))
+            sockfd.sendall(request_packed)
+            logger.info(f"已发送请求，大小: {request_size} 字节")
+            
+            # 接收响应数据大小
+            logger.debug("等待接收数据大小...")
+            data_size_packed = sockfd.recv(struct.calcsize('Q'))
+            if len(data_size_packed) != struct.calcsize('Q'):
+                logger.error("接收数据大小失败")
+                return None
+            
+            data_size = struct.unpack('Q', data_size_packed)[0]
+            logger.info(f"即将接收数据，大小: {data_size} 字节")
+            
+            # 接收完整数据
+            received_data = b''
+            remaining = data_size
+            while remaining > 0:
+                try:
+                    # 调整接收超时，避免长时间阻塞
+                    sockfd.settimeout(min(timeout, 5.0))
+                    chunk = sockfd.recv(min(buffer_size, remaining))
+                except socket.timeout:
+                    logger.warning("接收超时，尝试继续接收...")
+                    continue
+                
+                if not chunk:
+                    # 处理服务器半关闭连接
+                    if remaining > 0:
+                        logger.warning(f"服务器提前关闭连接，剩余 {remaining} 字节未接收")
+                        break
+                    else:
+                        break  # 数据已接收完毕
+                
+                received_data += chunk
+                remaining -= len(chunk)
+                logger.debug(f"已接收 {data_size - remaining}/{data_size} 字节")
+            
+            # 检查是否完整接收
+            if remaining > 0:
+                logger.error(f"数据接收不完整，仅接收 {data_size - remaining}/{data_size} 字节")
+                return None
+            
+            logger.info(f"成功接收数据，总大小: {len(received_data)} 字节")
+            return received_data
+            
+        except (ConnectionResetError, BrokenPipeError) as e:
+            logger.error(f"连接被服务器重置 (尝试 {attempt+1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                wait_time = 0.5 * (2 ** attempt)  # 指数退避算法
+                logger.info(f"将在 {wait_time:.2f} 秒后重试...")
+                time.sleep(wait_time)
+        except socket.timeout as e:
+            logger.error(f"连接或接收超时 (尝试 {attempt+1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                logger.info(f"将在1秒后重试...")
+                time.sleep(1)
+        except socket.gaierror as e:
+            logger.error(f"域名解析错误: {e}")
+            break  # 域名错误无需重试
+        except Exception as e:
+            logger.error(f"发生未知错误 (尝试 {attempt+1}/{max_retries}): {e}")
+            if attempt >= max_retries - 1:
+                logger.exception(e)  # 记录详细异常信息
+        finally:
+            # 确保关闭socket
+            if sockfd:
+                try:
+                    sockfd.shutdown(socket.SHUT_RDWR)
+                    sockfd.close()
+                except Exception:
+                    pass  # 忽略关闭时的异常
     
-    except Exception as e:
-        print(f"通信时发生错误: {e}")
-        if 'sockfd' in locals():
-            sockfd.close()
-        return None
+    logger.error(f"所有 {max_retries} 次尝试均失败")
+    return None
 
 def get_tracking_results(server_ip, server_port):
     # 构造请求数据（示例：请求获取跟踪结果）
@@ -168,26 +306,29 @@ if __name__ == "__main__":
     with ThreadPoolExecutor(max_workers=len(ips)) as executor:
         futures = [executor.submit(get_tracking_results, ip, port) for ip, port in zip(ips, ports)]
         results = [future.result() for future in futures]
+
+    # results = [get_tracking_results(ips[0], ports[0])]
     
-    for received_map in results:
+    
+    for index, received_map in enumerate(results):
 
         # 创建保存目录
-        if not os.path.exists("received_images"):
-            os.makedirs("received_images")
+        if not os.path.exists(f"received_images_{index}"):
+            os.makedirs(f"received_images_{index}")
         
         for key, pair in received_map.items():
             print(f"键: {key}, 图像数量: {len(pair.images)}")
-            if not os.path.exists(f"received_images/{key}"):
-                os.makedirs(f"received_images/{key}")
+            if not os.path.exists(f"received_images_{index}/{key}"):
+                os.makedirs(f"received_images_{index}/{key}")
             for i in range(len(pair.images)):
                 image = pair.images[i]
                 name = pair.names[i]
                 print(f"图像 {i+1}: 名称 = {name}, 大小 = {image.shape}")
                 
                 # 保存图像
-                filename = f"received_images/{key}/{name}"
+                filename = f"received_images_{index}/{key}/{name}"
                 cv2.imwrite(filename, image)
         
-    print("图像已成功保存到 received_images 目录")
+    print(f"图像已成功保存到 received_images_{index} 目录")
 
     

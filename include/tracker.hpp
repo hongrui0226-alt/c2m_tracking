@@ -213,12 +213,13 @@ public:
     tuple<vector<string>, vector<string>, vector<string>>
         occlusion_spilt(const vector<string>& name_list, bool color_similar);
     void save_results(bool save_error);
-    void track(const cv::Mat& frame);
+    void track(const cv::Mat& frame, bool visualize, bool save);
     void track_video(const string& video_path);
     std::vector<cv::Mat> videoToFrames(const std::string& videoPath);
     bool is_track_over();
     std::unordered_map<int, ImageData> getTrackResults();
     void post_process();
     void reset();
+    void setOutputFolder(const string& path);
 
 };

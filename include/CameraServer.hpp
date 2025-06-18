@@ -60,5 +60,6 @@ public:
     vector<uchar> serializeImageData(const ImageData& data);
     vector<uchar> serializeMap(const unordered_map<int, ImageData>& map);
     bool getState();
+    bool sendDataToClient(int client_socket, const std::vector<uchar>& serializedData, int timeoutSeconds);
 
 };

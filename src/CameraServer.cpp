@@ -2,17 +2,17 @@
 
 // 服务器主循环
 void CameraServer::serverLoop(SocketInfo& socket_info) {
-    // 4. 创建视频写入器
-    std::string output_video = "output_video.avi";
-    int fourcc = cv::VideoWriter::fourcc('M', 'J', 'P', 'G'); // MP4 编码
-    double fps = 106.0; // 帧率
-    cv::Size frame_size(1920, 1080);
+    // // 4. 创建视频写入器
+    // std::string output_video = "output_video.avi";
+    // int fourcc = cv::VideoWriter::fourcc('M', 'J', 'P', 'G'); // MP4 编码
+    // double fps = 106.0; // 帧率
+    // cv::Size frame_size(1920, 1080);
     
-    cv::VideoWriter video_writer;
-    if (!video_writer.open(output_video, fourcc, fps, frame_size)) {
-        std::cerr << "Could not open video writer for: " << output_video << std::endl;
-        return;
-    }
+    // cv::VideoWriter video_writer;
+    // if (!video_writer.open(output_video, fourcc, fps, frame_size)) {
+    //     std::cerr << "Could not open video writer for: " << output_video << std::endl;
+    //     return;
+    // }
 
     // Running server logic
     while (running) {
@@ -38,12 +38,23 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
                 while (cam1_tracker.is_track_over() == false && !over) {
                     if (camera_manager.getFrameQueueSize(camera_manager.camera1) > 0) {
                         Frame frame = camera_manager.getFrameQueue(camera_manager.camera1);
-                        cv::cvtColor(frame.image, bgr_img, cv::COLOR_YUV2BGR_NV12); // Decode NV12 to BGR
-                        cam1_tracker.track(bgr_img);
-                        // video_writer.write(bgr_img);
-                        cv::imwrite(cv::format("%d.png", frame_count), bgr_img);
-                        // cv::imshow("MIPICAM Stream", bgr_img);
-                        // int key = cv::waitKey(1);
+                        cv::Mat yuv_copy = frame.image.clone(); // 强制深拷贝YUV数据
+                        
+                        // 方案B：在颜色转换后深拷贝
+                        cv::Mat bgr_img;
+                        cv::cvtColor(yuv_copy, bgr_img, cv::COLOR_YUV2BGR_NV12);
+                        cv::Mat bgr_copy = bgr_img.clone(); // 再拷贝一次BGR数据
+                        
+                        // 使用深拷贝的数据进行跟踪和保存
+                        cam1_tracker.track(bgr_copy, false, false);
+
+                        // Frame frame = camera_manager.getFrameQueue(camera_manager.camera1);
+                        // cv::cvtColor(frame.image, bgr_img, cv::COLOR_YUV2BGR_NV12); // Decode NV12 to BGR
+                        // cam1_tracker.track(bgr_img);
+                        // // video_writer.write(bgr_img);
+                        // cv::imwrite(cv::format("%d.png", frame_count), bgr_img);
+                        // // cv::imshow("MIPICAM Stream", bgr_img);
+                        // // int key = cv::waitKey(1);
                         cout << "remain: " << camera_manager.getFrameQueueSize(camera_manager.camera1) << endl;
                         frame_count++;
                         if (frame_count + camera_manager.getFrameQueueSize(camera_manager.camera1) > 280) {
@@ -58,21 +69,28 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
                 camera_manager.camera1.stopCapture();
                 cout << "Stop recording on Camera 1..." << endl;
 
-                while (camera_manager.getFrameQueueSize(camera_manager.camera1) > 0) {
+                while ((camera_manager.getFrameQueueSize(camera_manager.camera1) > 0) && (cam1_tracker.is_track_over() == false)) {
                     Frame frame = camera_manager.getFrameQueue(camera_manager.camera1);
-                    cv::cvtColor(frame.image, bgr_img, cv::COLOR_YUV2BGR_NV12); // Decode NV12 to BGR
+                    cv::Mat yuv_copy = frame.image.clone();
+                    cv::cvtColor(yuv_copy, bgr_img, cv::COLOR_YUV2BGR_NV12); // Decode NV12 to BGR
+                    cv::Mat bgr_copy = bgr_img.clone(); // 再拷贝一次BGR数据
                     // video_writer.write(bgr_img);
-                    cv::imwrite(cv::format("%d.png", frame_count), bgr_img);
-                    cam1_tracker.track(bgr_img);
+                    // cv::imwrite(cv::format("%d.png", frame_count), bgr_img);
+                    cam1_tracker.track(bgr_copy, false, false);
                     frame_count++;
+                    cout << "frame_count: " << frame_count << endl;
                 }
 
                 // video_writer.release();
-                std::cout << "Video saved to: " << output_video << std::endl;
+                // std::cout << "Video saved to: " << output_video << std::endl;
 
                 cam1_tracker.post_process();
                 serializedData = serializeMap(cam1_tracker.getTrackResults());
+
+                // cam1_tracker.setOutputFolder("/home/sunrise/qimeng3/dataset/tracking_images/debug");
+                // cam1_tracker.save_results(true);
                 cam1_tracker.reset(); // Reset tracker for next session
+                camera_manager.camera1.frame_queue_.clear(); // Clear Camera Queue to reset
 
             } else if (socket_info.port == cam2_server_port && running) {
                 cout << "Starting recording on Camera 2..." << endl;
@@ -84,11 +102,19 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
                 while (cam2_tracker.is_track_over() == false && !over) {
                     if (camera_manager.getFrameQueueSize(camera_manager.camera2) > 0) {
                         Frame frame = camera_manager.getFrameQueue(camera_manager.camera2);
-                        cv::cvtColor(frame.image, bgr_img, cv::COLOR_YUV2BGR_NV12); // Decode NV12 to BGR
-                        cam2_tracker.track(bgr_img);
+                        cv::Mat yuv_copy = frame.image.clone(); // 强制深拷贝YUV数据
+                        
+                        // 方案B：在颜色转换后深拷贝
+                        cv::Mat bgr_img;
+                        cv::cvtColor(yuv_copy, bgr_img, cv::COLOR_YUV2BGR_NV12);
+                        cv::Mat bgr_copy = bgr_img.clone(); // 再拷贝一次BGR数据
+                        
+                        // 使用深拷贝的数据进行跟踪和保存
+                        cam2_tracker.track(bgr_copy, false, false);
 
+                        cout << "remain: " << camera_manager.getFrameQueueSize(camera_manager.camera2) << endl;
                         frame_count++;
-                        if (frame_count + camera_manager.getFrameQueueSize(camera_manager.camera1) > 280) {
+                        if (frame_count + camera_manager.getFrameQueueSize(camera_manager.camera2) > 280) {
                             cout << "over" << endl;
                             over = true;
                         }
@@ -99,43 +125,110 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
 
                 camera_manager.camera2.stopCapture();
                 cout << "Stop recording on Camera 2..." << endl;
-                
+
+                while ((camera_manager.getFrameQueueSize(camera_manager.camera2) > 0) && (cam1_tracker.is_track_over() == false)) {
+                    Frame frame = camera_manager.getFrameQueue(camera_manager.camera2);
+                    cv::Mat yuv_copy = frame.image.clone();
+                    cv::cvtColor(yuv_copy, bgr_img, cv::COLOR_YUV2BGR_NV12); // Decode NV12 to BGR
+                    cv::Mat bgr_copy = bgr_img.clone(); // 再拷贝一次BGR数据
+                    // video_writer.write(bgr_img);
+                    // cv::imwrite(cv::format("%d.png", frame_count), bgr_img);
+                    cam2_tracker.track(bgr_copy, false, false);
+                    frame_count++;
+                }
+
+                // video_writer.release();
+                // std::cout << "Video saved to: " << output_video << std::endl;
+
                 cam2_tracker.post_process();
                 serializedData = serializeMap(cam2_tracker.getTrackResults());
                 cam2_tracker.reset(); // Reset tracker for next session
+                camera_manager.camera2.frame_queue_.clear(); // Clear Camera Queue to reset
 
             }
 
             // send track results to client
             size_t dataSize = serializedData.size();
-            
-            // 发送数据大小
-            if (send(client_socket, &dataSize, sizeof(dataSize), 0) != sizeof(dataSize)) {
-                cerr << "Failed to send data size" << endl;
-                close(client_socket);
-                continue;
-            }
-            
-            // 发送数据
-            const uchar* ptr = serializedData.data();
-            size_t remaining = dataSize;
-            while (remaining > 0) {
-                ssize_t sent = send(client_socket, ptr, remaining, 0);
-                if (sent <= 0) {
-                    cerr << "Failed to send data" << endl;
-                    break;
+
+            try {
+                // send data
+                if (!sendDataToClient(client_socket, serializedData, 5)) {
+                    std::cerr << "数据发送失败，关闭连接" << std::endl;
+                    close(client_socket);
+                    return;
                 }
-                ptr += sent;
-                remaining -= sent;
+                
+                std::cout << "数据发送成功，大小: " << serializedData.size() << " 字节" << std::endl;
+                this_thread::sleep_for(chrono::milliseconds(2000));
+                close(client_socket);
+            } catch (const std::exception& e) {
+                std::cerr << "处理客户端请求时发生异常: " << e.what() << std::endl;
+                close(client_socket);
             }
+            
         }
         close(client_socket);
-        cout << "close client socket" << endl;
+        cout << socket_info.port <<" close client socket" << endl;
     }
 
     cout << "Stop Running" << endl;
     
     close(socket_info.fd);
+}
+
+bool CameraServer::sendDataToClient(int client_socket, 
+                                    const std::vector<uchar>& serializedData, 
+                                    int timeoutSeconds = 30) {
+    size_t dataSize = serializedData.size();
+    
+    // 设置套接字发送超时
+    struct timeval tv;
+    tv.tv_sec = timeoutSeconds;
+    tv.tv_usec = 0;
+    setsockopt(client_socket, SOL_SOCKET, SO_SNDTIMEO, (char*)&tv, sizeof(tv));
+    
+    // 发送数据大小
+    if (send(client_socket, &dataSize, sizeof(dataSize), 0) != sizeof(dataSize)) {
+        int error = errno;
+        if (error == EAGAIN || error == EWOULDBLOCK) {
+            std::cerr << "发送数据大小超时" << std::endl;
+        } else if (error == EPIPE || error == ECONNRESET) {
+            std::cerr << "客户端已关闭连接" << std::endl;
+        } else {
+            std::cerr << "发送数据大小失败: " << strerror(error) << std::endl;
+        }
+        return false;
+    }
+    
+    // 发送实际数据
+    const uchar* ptr = serializedData.data();
+    size_t remaining = dataSize;
+    
+    while (remaining > 0) {
+        ssize_t sent = send(client_socket, ptr, remaining, 0);
+        if (sent < 0) {
+            int error = errno;
+            if (error == EAGAIN || error == EWOULDBLOCK) {
+                std::cerr << "发送数据超时" << std::endl;
+                break;
+            } else if (error == EPIPE || error == ECONNRESET) {
+                std::cerr << "客户端已关闭连接" << std::endl;
+                break;
+            } else {
+                std::cerr << "发送数据失败: " << strerror(error) << std::endl;
+                break;
+            }
+        } else if (sent == 0) {
+            // 对方已关闭连接
+            std::cerr << "客户端已关闭连接" << std::endl;
+            break;
+        }
+        
+        ptr += sent;
+        remaining -= sent;
+    }
+    
+    return remaining == 0;
 }
 
 int CameraServer::connectToClient(const string& clientIp, int clientPort) {
@@ -303,30 +396,30 @@ void signal_handler(int sig) {
 }
 
 int main() {
-    // // 注册信号处理
-    // signal(SIGINT, signal_handler);
-    // signal(SIGTERM, signal_handler);
+    // 注册信号处理
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
     
-    // // 创建并启动Socket服务器
-    // int cam1_port = 8085;
-    // int cam2_port = 8086;
-    // CameraServer server(cam1_port, cam2_port);
-    // server.start();
+    // 创建并启动Socket服务器
+    int cam1_port = 8085;
+    int cam2_port = 8086;
+    CameraServer server(cam1_port, cam2_port);
+    server.start();
 
-    // // 主循环等待信号
-    // while (keep_running) {
-    //     this_thread::sleep_for(chrono::seconds(1));
-    // }
+    // 主循环等待信号
+    while (keep_running) {
+        this_thread::sleep_for(chrono::seconds(1));
+    }
 
-    // // 停止服务器
-    // server.stop();
+    // 停止服务器
+    server.stop();
     
-    // cout << "Server stopped. Exiting." << endl;
+    cout << "Server stopped. Exiting." << endl;
 
-    Tracker tracker;
+    // Tracker tracker;
 
-    string video_path = "/home/sunrise/qimeng3/dataset/videos/output_2.avi";
-    tracker.track_video(video_path);
+    // string video_path = "/home/sunrise/qimeng3/dataset/videos/output_2.avi";
+    // tracker.track_video(video_path);
 
     return 0;
 }
