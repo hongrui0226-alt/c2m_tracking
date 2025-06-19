@@ -46,7 +46,7 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
                         cv::Mat bgr_copy = bgr_img.clone(); // 再拷贝一次BGR数据
                         
                         // 使用深拷贝的数据进行跟踪和保存
-                        cam1_tracker.track(bgr_copy, false, false);
+                        cam1_tracker.track(bgr_copy, false);
 
                         // Frame frame = camera_manager.getFrameQueue(camera_manager.camera1);
                         // cv::cvtColor(frame.image, bgr_img, cv::COLOR_YUV2BGR_NV12); // Decode NV12 to BGR
@@ -76,7 +76,7 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
                     cv::Mat bgr_copy = bgr_img.clone(); // 再拷贝一次BGR数据
                     // video_writer.write(bgr_img);
                     // cv::imwrite(cv::format("%d.png", frame_count), bgr_img);
-                    cam1_tracker.track(bgr_copy, false, false);
+                    cam1_tracker.track(bgr_copy, false);
                     frame_count++;
                     cout << "frame_count: " << frame_count << endl;
                 }
@@ -110,7 +110,7 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
                         cv::Mat bgr_copy = bgr_img.clone(); // 再拷贝一次BGR数据
                         
                         // 使用深拷贝的数据进行跟踪和保存
-                        cam2_tracker.track(bgr_copy, false, false);
+                        cam2_tracker.track(bgr_copy, false);
 
                         cout << "remain: " << camera_manager.getFrameQueueSize(camera_manager.camera2) << endl;
                         frame_count++;
@@ -133,7 +133,7 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
                     cv::Mat bgr_copy = bgr_img.clone(); // 再拷贝一次BGR数据
                     // video_writer.write(bgr_img);
                     // cv::imwrite(cv::format("%d.png", frame_count), bgr_img);
-                    cam2_tracker.track(bgr_copy, false, false);
+                    cam2_tracker.track(bgr_copy, false);
                     frame_count++;
                 }
 

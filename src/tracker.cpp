@@ -510,8 +510,7 @@ Tracker::occlusion_spilt(const vector<string>& name_list, bool color_similar = t
 
 void Tracker::tracking_group(const cv::Mat& frame, 
                             vector<TrackedData>& tracked_datavec, 
-                            bool visualize=true,
-                            bool save=true) {
+                            bool visualize=true) {
     frame_count++;
     current_frame_info.clear();
     current_frame_xy.clear();
@@ -1023,6 +1022,10 @@ void Tracker::post_process() {
             auto [min, max] = minmax_element(hsv_means.begin(), hsv_means.end());
             if ((*max - *min) < hsv_separation) {
                 auto [obj1_list, obj2_list, merging_list] = occlusion_spilt(data.names, true);
+                cout << "id: " << id << endl;
+                cout << "obj1_list size: " << obj1_list.size() << endl;
+                cout << "obj2_list size: " << obj2_list.size() << endl;
+                cout << "merging_list size: " << merging_list.size() << endl;
                 for (const auto& name : obj1_list) {
                     auto pos = std::find(data.names.begin(), data.names.end(), name);
                     img2save[id_1].images.push_back(data.images[pos - data.names.begin()].clone());
@@ -1037,7 +1040,9 @@ void Tracker::post_process() {
             }
             else {
                 auto [combinded, merging_list, other] = occlusion_spilt(data.names, false);
-
+                cout << "id: " << id << endl;
+                cout << "combinded size: " << combinded.size() << endl;
+                cout << "merging_list size: " << merging_list.size() << endl;
                 vector<double> hsv_unmerged;
                 vector<string> obj1_list, obj2_list;
                 for (const auto& name : combinded) {
@@ -1128,13 +1133,13 @@ void Tracker::reset() {
     // detected_flag、track_over_flag、tracked_id 重置
     // 传回有效数据，把数据交给server send处理，这里可能要注意数据结构以及处理过程中的数据保存
 
-void Tracker::track(const cv::Mat& frame, bool visualize, bool save) {
+void Tracker::track(const cv::Mat& frame, bool visualize) {
     if (detected_flag) {  // 检测到有效帧后
         vector<TrackedData> cv_res = cv_process_frame(frame);
         
         if (cv_res.size() > 0) {
             // 检测到目标后，再执行tracking group
-            tracking_group(frame, cv_res, visualize, save);
+            tracking_group(frame, cv_res, visualize);
             undetected_frame_count = 0;
             cout << "出现目标" << cv_res.size() << endl;
         }
@@ -1166,7 +1171,7 @@ void Tracker::track(const cv::Mat& frame, bool visualize, bool save) {
             );
 
             vector<TrackedData> cv_res = cv_process_frame(frame);
-            tracking_group(frame, cv_res, visualize, save);
+            tracking_group(frame, cv_res, visualize);
             cout << "检测到有效帧" << endl;
         }
         else {
@@ -1234,7 +1239,7 @@ void Tracker::track_video(const string& video_path) {
 
     auto start = std::chrono::high_resolution_clock::now();
     for (const auto& frame : frames) {
-        track(frame, true, true);
+        track(frame, true);
         if (track_over_flag) break;
     }
     auto end = std::chrono::high_resolution_clock::now();

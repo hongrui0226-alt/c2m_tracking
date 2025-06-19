@@ -115,9 +115,9 @@ private:
     int head_threshold = 440;
     int tail_threshold = 85;
     int vaild_area = 35;
-    int hsv_separation = 10;  // HSV色调分离阈值  TODO：待定
-    int tolerance_undetected_num = 5;
-    int binary_threshold = 20;
+    int hsv_separation = 150;  // HSV色调分离阈值  TODO：待定
+    int tolerance_undetected_num = 20;
+    int binary_threshold = 50;
 
     // Track Flag
     bool detected_flag = false;
@@ -206,14 +206,14 @@ public:
     vector<TrackedData> cv_process_frame(const cv::Mat& frame);
     void tracking_group(const cv::Mat& frame, 
                         vector<TrackedData>& tracked_datavec, 
-                        bool visualize, bool save);
+                        bool visualize);
     bool is_all_white(const cv::Mat& img);
     MatchResult match_points(const std::vector<TrackXY>& set_A, 
                             const std::vector<TrackXY>& set_B);
     tuple<vector<string>, vector<string>, vector<string>>
         occlusion_spilt(const vector<string>& name_list, bool color_similar);
     void save_results(bool save_error);
-    void track(const cv::Mat& frame, bool visualize, bool save);
+    void track(const cv::Mat& frame, bool visualize);
     void track_video(const string& video_path);
     std::vector<cv::Mat> videoToFrames(const std::string& videoPath);
     bool is_track_over();
