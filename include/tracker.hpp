@@ -127,7 +127,8 @@ private:
     int undetected_frame_count = 0;
 
     // Track 数据
-    std::vector<cv::Mat> frames;
+    std::vector<cv::Mat> visualize_images;
+    std::vector<string> visualize_names;
     std::vector<TrackInfo> last_frame_info, current_frame_info;
     std::vector<TrackXY> last_frame_xy, current_frame_xy;
     std::unordered_map<int, ImageData> img2save;
@@ -200,7 +201,7 @@ public:
         return cv::Rect(roi_x1, roi_y1, image_w, image_h);
     }
     
-    int find_vaild_frame(int dir);
+    // int find_vaild_frame(int dir);
     bool detect_block(const cv::Mat& frame, const cv::Mat& blank_frame);
     cv::Mat crop_and_pad_by_contour(const cv::Mat& image, const cv::Mat& blank, int target_size);
     vector<TrackedData> cv_process_frame(const cv::Mat& frame);
@@ -221,5 +222,7 @@ public:
     void post_process();
     void reset();
     void setOutputFolder(const string& path);
+    vector<cv::Mat> getVisImages();
+    vector<string> getVisNames(); 
 
 };

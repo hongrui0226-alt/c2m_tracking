@@ -61,5 +61,6 @@ public:
     vector<uchar> serializeMap(const unordered_map<int, ImageData>& map);
     bool getState();
     bool sendDataToClient(int client_socket, const std::vector<uchar>& serializedData, int timeoutSeconds);
+    bool send_visualize_data(int sockfd, const std::vector<cv::Mat>& images, const std::vector<std::string>& names);
 
 };

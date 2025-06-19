@@ -2,17 +2,6 @@
 
 // 服务器主循环
 void CameraServer::serverLoop(SocketInfo& socket_info) {
-    // // 4. 创建视频写入器
-    // std::string output_video = "output_video.avi";
-    // int fourcc = cv::VideoWriter::fourcc('M', 'J', 'P', 'G'); // MP4 编码
-    // double fps = 106.0; // 帧率
-    // cv::Size frame_size(1920, 1080);
-    
-    // cv::VideoWriter video_writer;
-    // if (!video_writer.open(output_video, fourcc, fps, frame_size)) {
-    //     std::cerr << "Could not open video writer for: " << output_video << std::endl;
-    //     return;
-    // }
 
     // Running server logic
     while (running) {
@@ -48,14 +37,6 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
                         // 使用深拷贝的数据进行跟踪和保存
                         cam1_tracker.track(bgr_copy, false);
 
-                        // Frame frame = camera_manager.getFrameQueue(camera_manager.camera1);
-                        // cv::cvtColor(frame.image, bgr_img, cv::COLOR_YUV2BGR_NV12); // Decode NV12 to BGR
-                        // cam1_tracker.track(bgr_img);
-                        // // video_writer.write(bgr_img);
-                        // cv::imwrite(cv::format("%d.png", frame_count), bgr_img);
-                        // // cv::imshow("MIPICAM Stream", bgr_img);
-                        // // int key = cv::waitKey(1);
-                        cout << "remain: " << camera_manager.getFrameQueueSize(camera_manager.camera1) << endl;
                         frame_count++;
                         if (frame_count + camera_manager.getFrameQueueSize(camera_manager.camera1) > 280) {
                             cout << "over" << endl;
@@ -81,16 +62,14 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
                     cout << "frame_count: " << frame_count << endl;
                 }
 
-                // video_writer.release();
-                // std::cout << "Video saved to: " << output_video << std::endl;
-
                 cam1_tracker.post_process();
                 serializedData = serializeMap(cam1_tracker.getTrackResults());
+                send_visualize_data(client_socket, cam1_tracker.getVisImages(), cam1_tracker.getVisNames());
+                cam1_tracker.reset(); // Reset tracker for next session
+                camera_manager.camera1.frame_queue_.clear(); // Clear Camera Queue to reset
 
                 // cam1_tracker.setOutputFolder("/home/sunrise/qimeng3/dataset/tracking_images/debug");
                 // cam1_tracker.save_results(true);
-                cam1_tracker.reset(); // Reset tracker for next session
-                camera_manager.camera1.frame_queue_.clear(); // Clear Camera Queue to reset
 
             } else if (socket_info.port == cam2_server_port && running) {
                 cout << "Starting recording on Camera 2..." << endl;
@@ -131,8 +110,6 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
                     cv::Mat yuv_copy = frame.image.clone();
                     cv::cvtColor(yuv_copy, bgr_img, cv::COLOR_YUV2BGR_NV12); // Decode NV12 to BGR
                     cv::Mat bgr_copy = bgr_img.clone(); // 再拷贝一次BGR数据
-                    // video_writer.write(bgr_img);
-                    // cv::imwrite(cv::format("%d.png", frame_count), bgr_img);
                     cam2_tracker.track(bgr_copy, false);
                     frame_count++;
                 }
@@ -142,6 +119,7 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
 
                 cam2_tracker.post_process();
                 serializedData = serializeMap(cam2_tracker.getTrackResults());
+                send_visualize_data(client_socket, cam2_tracker.getVisImages(), cam2_tracker.getVisNames());
                 cam2_tracker.reset(); // Reset tracker for next session
                 camera_manager.camera2.frame_queue_.clear(); // Clear Camera Queue to reset
 
@@ -381,6 +359,58 @@ std::vector<uchar> CameraServer::serializeMap(const std::unordered_map<int, Imag
     }
     
     return result;
+}
+
+bool CameraServer::send_visualize_data(int sockfd, const std::vector<cv::Mat>& images, const std::vector<std::string>& names) {
+    // 检查图像和名称数量是否匹配
+    if (images.size() != names.size()) {
+        std::cerr << "Error: Number of images and names do not match!" << std::endl;
+        return false;
+    }
+
+    // 1. 发送图像数量
+    uint32_t count = images.size();
+    if (send(sockfd, &count, sizeof(count), 0) != sizeof(count)) {
+        std::cerr << "Error sending image count!" << std::endl;
+        return false;
+    }
+
+    // 2. 循环发送每个图像和对应的名称
+    for (size_t i = 0; i < count; ++i) {
+        const cv::Mat& image = images[i];
+        const std::string& name = names[i];
+
+        // 2.1 发送图像宽度、高度和通道数
+        uint32_t width = image.cols;
+        uint32_t height = image.rows;
+        uint32_t channels = image.channels();
+        
+        send(sockfd, &width, sizeof(width), 0);
+        send(sockfd, &height, sizeof(height), 0);
+        send(sockfd, &channels, sizeof(channels), 0);
+
+        // 2.2 发送图像数据大小
+        size_t image_size = image.total() * image.elemSize();
+        send(sockfd, &image_size, sizeof(image_size), 0);
+
+        // 2.3 发送图像数据
+        if (send(sockfd, image.data, image_size, 0) != static_cast<ssize_t>(image_size)) {
+            std::cerr << "Error sending image data!" << std::endl;
+            return false;
+        }
+
+        // 2.4 发送图像名称长度
+        uint32_t name_length = name.length();
+        send(sockfd, &name_length, sizeof(name_length), 0);
+
+        // 2.5 发送图像名称
+        if (send(sockfd, name.c_str(), name_length, 0) != static_cast<ssize_t>(name_length)) {
+            std::cerr << "Error sending image name!" << std::endl;
+            return false;
+        }
+    }
+
+    return true;
 }
 
 bool CameraServer::getState() {

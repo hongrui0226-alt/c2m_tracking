@@ -89,68 +89,13 @@ def deserialize_map(data):
     
     return result
 
-# 通过socket发送请求并接收数据
-# def send_request_and_receive_data(server_ip, server_port, request_data):
-#     # 创建socket
-#     sockfd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-#     if sockfd is None:
-#         print("创建socket失败")
-#         return None
-    
-#     try:
-#         # 连接到服务器
-#         sockfd.connect((server_ip, server_port))
-#         print(f"已连接到服务器 {server_ip}:{server_port}")
-        
-#         # 发送请求数据（这里使用pickle序列化请求）
-#         request_packed = pickle.dumps(request_data)
-#         request_size = len(request_packed)
-        
-#         # 发送请求大小
-#         sockfd.sendall(struct.pack('Q', request_size))
-#         # 发送请求数据
-#         sockfd.sendall(request_packed)
-#         print(f"已发送请求，大小: {request_size} 字节")
-        
-#         # 接收数据大小
-#         data_size_packed = sockfd.recv(struct.calcsize('Q'))
-#         if len(data_size_packed) != struct.calcsize('Q'):
-#             print("接收数据大小失败")
-#             sockfd.close()
-#             return None
-        
-#         data_size = struct.unpack('Q', data_size_packed)[0]
-#         print(f"即将接收数据，大小: {data_size} 字节")
-        
-#         # 接收数据
-#         received_data = b''
-#         remaining = data_size
-#         while remaining > 0:
-#             chunk = sockfd.recv(min(4096, remaining))
-#             if not chunk:
-#                 print("接收数据失败")
-#                 sockfd.close()
-#                 return None
-            
-#             received_data += chunk
-#             remaining -= len(chunk)
-        
-#         sockfd.close()
-#         return received_data
-    
-#     except Exception as e:
-#         print(f"通信时发生错误: {e}")
-#         if 'sockfd' in locals():
-#             sockfd.close()
-#         return None
-
 def send_request_and_receive_data(
     server_ip: str,
     server_port: int,
     request_data: Any,
     max_retries: int = 3,
     timeout: float = 15.0,
-    buffer_size: int = 16384
+    buffer_size: int = 65536  # 64KB
 ) -> Optional[bytes]:
     """
     发送请求到服务器并接收响应数据，包含完整的错误处理和重试机制
@@ -210,11 +155,48 @@ def send_request_and_receive_data(
                 logger.error("接收数据大小失败")
                 return None
             
+            # 接收可视化数据
+            count_data = sockfd.recv(4)
+            count = struct.unpack('I', count_data)[0]
+            
+            images = []
+            names = []
+            
+            # 2. 循环接收每个图像和对应的名称
+            for _ in range(count):
+                
+                # 2.2 接收图像数据大小
+                image_size_data = sockfd.recv(8)
+                image_size = struct.unpack('Q', image_size_data)[0]
+                
+                # 2.3 接收图像数据
+                image_data = b''
+                while len(image_data) < image_size:
+                    chunk = sockfd.recv(min(buffer_size, image_size - len(image_data)))
+                    if not chunk:
+                        break
+                    image_data += chunk
+                
+                # 将字节数据转换为 numpy 数组
+                img_array = np.frombuffer(image_data, dtype=np.uint8)
+                img = img_array.reshape((480, 640, 3))
+                
+                # 2.4 接收图像名称长度
+                name_length_data = sockfd.recv(4)
+                name_length = struct.unpack('I', name_length_data)[0]
+                
+                # 2.5 接收图像名称
+                name_data = sockfd.recv(name_length)
+                name = name_data.decode('utf-8')
+                
+                images.append(img)
+                names.append(name)
+
             data_size = struct.unpack('Q', data_size_packed)[0]
             logger.info(f"即将接收数据，大小: {data_size} 字节")
             
             # 接收完整数据
-            received_data = b''
+            track_res_data = b''
             remaining = data_size
             while remaining > 0:
                 try:
@@ -233,7 +215,7 @@ def send_request_and_receive_data(
                     else:
                         break  # 数据已接收完毕
                 
-                received_data += chunk
+                track_res_data += chunk
                 remaining -= len(chunk)
                 logger.debug(f"已接收 {data_size - remaining}/{data_size} 字节")
             
@@ -242,8 +224,8 @@ def send_request_and_receive_data(
                 logger.error(f"数据接收不完整，仅接收 {data_size - remaining}/{data_size} 字节")
                 return None
             
-            logger.info(f"成功接收数据，总大小: {len(received_data)} 字节")
-            return received_data
+            logger.info(f"成功接收数据，总大小: {len(track_res_data)} 字节")
+            return track_res_data, images, names
             
         except (ConnectionResetError, BrokenPipeError) as e:
             logger.error(f"连接被服务器重置 (尝试 {attempt+1}/{max_retries}): {e}")
@@ -280,21 +262,21 @@ def get_tracking_results(server_ip, server_port):
     request = {"action": "get_track_results", "camera_id": 1}
     
     # 发送请求并接收数据
-    received_data = send_request_and_receive_data(server_ip, server_port, request)
-    if received_data is None:
+    track_res_data, vis_imgs, vis_names = send_request_and_receive_data(server_ip, server_port, request)
+    if track_res_data is None:
         print("请求失败或未接收到数据")
         exit(-1)
     
     # 反序列化接收到的数据
-    received_map = deserialize_map(received_data)
+    track_resulsts = deserialize_map(track_res_data)
     
-    if not received_map:
+    if not track_resulsts:
         print("反序列化数据失败或数据为空")
         exit(-1)
     
-    print(f"接收数据成功，包含 {len(received_map)} 个键值对")
+    print(f"接收数据成功，包含 {len(track_resulsts)} 个键值对")
     
-    return received_map
+    return track_resulsts, vis_imgs, vis_names
 
 
 # 主函数
@@ -310,24 +292,33 @@ if __name__ == "__main__":
     # results = [get_tracking_results(ips[0], ports[0])]
     
     
-    for index, received_map in enumerate(results):
+    for index, (track_resulsts, vis_imgs, vis_names) in enumerate(results):
 
         # 创建保存目录
         if not os.path.exists(f"received_images_{index}"):
             os.makedirs(f"received_images_{index}")
         
-        for key, pair in received_map.items():
+        for key, pair in track_resulsts.items():
             print(f"键: {key}, 图像数量: {len(pair.images)}")
             if not os.path.exists(f"received_images_{index}/{key}"):
                 os.makedirs(f"received_images_{index}/{key}")
             for i in range(len(pair.images)):
                 image = pair.images[i]
                 name = pair.names[i]
-                print(f"图像 {i+1}: 名称 = {name}, 大小 = {image.shape}")
+                # print(f"图像 {i+1}: 名称 = {name}, 大小 = {image.shape}")
                 
                 # 保存图像
                 filename = f"received_images_{index}/{key}/{name}"
                 cv2.imwrite(filename, image)
+
+        if not os.path.exists(f"received_images_{index}/vis"):
+            os.makedirs(f"received_images_{index}/vis")
+
+        for i, (img, name) in enumerate(zip(vis_imgs, vis_names)):
+            print(f"可视化图像 {i+1}: 名称 = {name}, 大小 = {img.shape}")
+            # 保存可视化图像
+            vis_filename = f"received_images_{index}/vis/{name}"
+            cv2.imwrite(vis_filename, img)
         
     print(f"图像已成功保存到 received_images_{index} 目录")
 

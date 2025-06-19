@@ -5,6 +5,9 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_BUILD_TYPE Debug)
 
+# 命令行参数
+option(ENABLE_TESTS "Build tests" OFF)
+
 if(EXISTS "/opt/gcc-arm-11.2-2022.02-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-gcc")
     set(CROSS_COMPILE "/opt/gcc-arm-11.2-2022.02-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-")
 else()
@@ -67,27 +70,15 @@ link_directories(
 )
 
 # 添加可执行文件
-# add_executable(tracker src/tracker.cpp)
 add_executable(CameraServer 
     src/CameraServer.cpp
     src/tracker.cpp)
-add_executable(tmp_server src/tmp_server.cpp)
-add_executable(tmp_receive src/tmp_receive.cpp)
-add_executable(tmp_multi_server src/tmp_multi_server.cpp)
-
-# # 链接静态库和 OpenCV 库
-# target_link_libraries(tracker
-#     ${OpenCV_LIBS}
-#     mipicam
-#     cam
-#     vpf
-#     hbmem
-#     gdcbin
-#     cjson
-#     pthread
-#     alog
-#     dl
-# )
+if (ENABLE_TESTS)
+    add_executable(tmp_server src/tmp_server.cpp)
+    add_executable(tmp_receive src/tmp_receive.cpp)
+    add_executable(tmp_multi_server src/tmp_multi_server.cpp)
+    add_executable(tmp_visualize_send src/tmp_visualize_send.cpp)
+endif()
 
 target_link_libraries(CameraServer
     ${OpenCV_LIBS}
@@ -102,13 +93,18 @@ target_link_libraries(CameraServer
     dl
 )
 
-target_link_libraries(tmp_server
-    ${OpenCV_LIBS}
-    )
-target_link_libraries(tmp_receive
-    ${OpenCV_LIBS}
-    )
-target_link_libraries(tmp_multi_server
-    ${OpenCV_LIBS}
-    )
+if (ENABLE_TESTS)
+    target_link_libraries(tmp_server
+        ${OpenCV_LIBS}
+        )
+    target_link_libraries(tmp_receive
+        ${OpenCV_LIBS}
+        )
+    target_link_libraries(tmp_multi_server
+        ${OpenCV_LIBS}
+        )
+    target_link_libraries(tmp_visualize_send
+        ${OpenCV_LIBS}
+        )
+endif()
 

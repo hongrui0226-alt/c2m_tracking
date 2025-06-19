@@ -45,48 +45,48 @@ bool Tracker::is_track_over() {
     return track_over_flag;
 }
 
-int Tracker::find_vaild_frame(int dir) {
-    int step = 3;
-    std::cout << "total_frame num: " << total_frame << std::endl;
+// int Tracker::find_vaild_frame(int dir) {
+//     int step = 3;
+//     std::cout << "total_frame num: " << total_frame << std::endl;
 
-    if (dir == 1) {
-        // 反向遍历帧（从后往前）
-        for (int i = frames.size() - 1; i >= 0; i -= step) {
-            cv::Mat frame = frames[i](
-                cv::Rect(roix1_orig, roiy1_orig, width_orig, length_orig)
-            );
+//     if (dir == 1) {
+//         // 反向遍历帧（从后往前）
+//         for (int i = frames.size() - 1; i >= 0; i -= step) {
+//             cv::Mat frame = frames[i](
+//                 cv::Rect(roix1_orig, roiy1_orig, width_orig, length_orig)
+//             );
             
-            // 截取检查区域（左侧）
-            cv::Mat check_frame = frame(
-                cv::Rect(0, 0, static_cast<int>(80 / scale_x), length_orig)
-            );
+//             // 截取检查区域（左侧）
+//             cv::Mat check_frame = frame(
+//                 cv::Rect(0, 0, static_cast<int>(80 / scale_x), length_orig)
+//             );
             
-            if (detect_block(check_frame, blank_frame_tail_area)) {
-                return total_frame - ((frames.size() - 1 - i) / step - 1) * 3;
-            }
-        }
-    } 
-    else if (dir == 2) {
-        // 正向遍历帧（从前往后）
-        for (size_t i = 0; i < frames.size(); i += step) {
-            cv::Mat frame = frames[i](
-                cv::Rect(roix1_orig, roiy1_orig, width_orig, length_orig)
-            );
+//             if (detect_block(check_frame, blank_frame_tail_area)) {
+//                 return total_frame - ((frames.size() - 1 - i) / step - 1) * 3;
+//             }
+//         }
+//     } 
+//     else if (dir == 2) {
+//         // 正向遍历帧（从前往后）
+//         for (size_t i = 0; i < frames.size(); i += step) {
+//             cv::Mat frame = frames[i](
+//                 cv::Rect(roix1_orig, roiy1_orig, width_orig, length_orig)
+//             );
             
-            // 截取检查区域（右侧）
-            int right_width = static_cast<int>(40 / scale_x);
-            cv::Mat check_frame = frame(
-                cv::Rect(width_orig - right_width, 0, right_width, length_orig)
-            );
+//             // 截取检查区域（右侧）
+//             int right_width = static_cast<int>(40 / scale_x);
+//             cv::Mat check_frame = frame(
+//                 cv::Rect(width_orig - right_width, 0, right_width, length_orig)
+//             );
             
-            if (detect_block(check_frame, blank_frame_head_area)) {
-                return (i / step - 1) * 3;
-            }
-        }
-    }
+//             if (detect_block(check_frame, blank_frame_head_area)) {
+//                 return (i / step - 1) * 3;
+//             }
+//         }
+//     }
 
-    return -1;
-}
+//     return -1;
+// }
 
 bool Tracker::detect_block(const cv::Mat& frame, const cv::Mat& blank_frame) {
     // 获得原始区域
@@ -586,8 +586,16 @@ void Tracker::tracking_group(const cv::Mat& frame,
                                 visualize_config.color_tracked, visualize_config.thickness);
                     }
                 }
-                imwrite(cv::format("%s/frame_%d.png", visualize_dir.c_str(), frame_count+1), 
-                        visualized_frame);
+                // imwrite(cv::format("%s/frame_%d.png", visualize_dir.c_str(), frame_count+1), 
+                //         visualized_frame);
+                {
+                    lock_guard<mutex> lock(mtx);
+                    visualize_images.push_back(visualized_frame);
+                    visualize_names.push_back(
+                        cv::format("frame_%d.png", frame_count+1)
+                    );
+                }
+                
             }
         }
         return;
@@ -834,8 +842,16 @@ void Tracker::tracking_group(const cv::Mat& frame,
                         visualize_config.color_tracked, visualize_config.thickness);
             }
         }
-        imwrite(cv::format("%s/frame_%d.png", visualize_dir.c_str(), frame_count+1), 
-                visualized_frame);
+        // imwrite(cv::format("%s/frame_%d.png", visualize_dir.c_str(), frame_count+1), 
+        //         visualized_frame);
+        {
+            lock_guard<mutex> lock(mtx);
+            visualize_images.push_back(visualized_frame);
+            visualize_names.push_back(
+                cv::format("frame_%d.png", frame_count+1)
+            );
+        }
+            
     }
 
 }
@@ -1077,16 +1093,16 @@ void Tracker::post_process() {
             nonused_ids.push_back(id);
         }
     }
-    // // 安全删除方法
-    // auto it = img2save.begin();
-    // while (it != img2save.end()) {
-    //     if (std::find(nonused_ids.begin(), nonused_ids.end(), it->first) != nonused_ids.end()) {
-    //         // erase返回下一个有效迭代器，避免迭代器失效
-    //         it = img2save.erase(it);
-    //     } else {
-    //         ++it;
-    //     }
-    // }
+    // 安全删除方法
+    auto it = img2save.begin();
+    while (it != img2save.end()) {
+        if (std::find(nonused_ids.begin(), nonused_ids.end(), it->first) != nonused_ids.end()) {
+            // erase返回下一个有效迭代器，避免迭代器失效
+            it = img2save.erase(it);
+        } else {
+            ++it;
+        }
+    }
 }
 
 void Tracker::setOutputFolder(const string& path) {
@@ -1117,9 +1133,21 @@ void Tracker::reset() {
     last_frame_info.clear();
     current_frame_info.clear();
     current_frame_xy.clear();
+    visualize_images.clear();
+    visualize_names.clear();
     
     tracked_id = 0;
     frame_count = 0;
+}
+
+vector<cv::Mat> Tracker::getVisImages() {
+    lock_guard<mutex> lock(mtx);
+    return visualize_images;
+}
+
+vector<string> Tracker::getVisNames() {
+    lock_guard<mutex> lock(mtx);
+    return visualize_names;
 }
 
 // 整体流程：
