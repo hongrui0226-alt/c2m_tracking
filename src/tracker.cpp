@@ -240,33 +240,47 @@ vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame) {
     cv::absdiff(blank_rect_gray, frame_gray, diff);
     np_abs_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t4).count());
 
-    // 5. 阈值处理
-    auto t6 = high_resolution_clock::now();
-    cv::Mat thresh;
-    cv::threshold(diff, thresh, binary_threshold, 255, cv::THRESH_BINARY);
-    cv2_threshold_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t6).count());
+    // // 5. 阈值处理
+    // auto t6 = high_resolution_clock::now();
+    // cv::Mat thresh;
+    // cv::threshold(diff, thresh, binary_threshold, 255, cv::THRESH_BINARY);
+    // cv2_threshold_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t6).count());
 
-    // 6. 形态学操作
-    auto t7 = high_resolution_clock::now();
-    cv::Mat fg_mask;
-    cv::erode(thresh, fg_mask, kernel, cv::Point(-1, -1), 1);
-    cv2_erode_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t7).count());
+    // // 6. 形态学操作
+    // auto t7 = high_resolution_clock::now();
+    // cv::Mat fg_mask;
+    // cv::erode(thresh, fg_mask, kernel, cv::Point(-1, -1), 1);
+    // cv2_erode_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t7).count());
 
-    auto t8 = high_resolution_clock::now();
-    cv::dilate(fg_mask, fg_mask, kernel, cv::Point(-1, -1), 1);
-    cv2_dilate_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t8).count());
+    // auto t8 = high_resolution_clock::now();
+    // cv::dilate(fg_mask, fg_mask, kernel, cv::Point(-1, -1), 1);
+    // cv2_dilate_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t8).count());
+
+    // 高斯模糊减少噪声
+    cv::Mat blurred;
+    GaussianBlur(diff, blurred, cv::Size(5, 5), 0);
+
+    // 使用Canny边缘检测
+    cv::Mat edges;
+    Canny(blurred, edges, 50, 100);
+
+    // 创建椭圆结构元素
+    cv::Mat close_kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(7, 7));
+
+    // 形态学闭运算
+    morphologyEx(edges, edges, cv::MORPH_CLOSE, close_kernel);
 
     // 7. 轮廓检测
     auto t9 = high_resolution_clock::now();
     std::vector<std::vector<cv::Point>> contours;
-    cv::findContours(fg_mask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    cv::findContours(edges, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
     cv2_find_counter_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t9).count());
 
     int valid_count = 0;
     for (const auto& contour : contours) {
         // 面积过滤
         double area = cv::contourArea(contour);
-        if (area <= MIN_CONTOUR_AREA || area >= 460*450) continue;
+        if ((area <= MIN_CONTOUR_AREA || area >= 460*450) && (area >10.0)) continue;
 
         // 边界框计算
         cv::Rect bbox = cv::boundingRect(contour);
