@@ -78,6 +78,7 @@ if (ENABLE_TESTS)
     add_executable(tmp_receive src/tmp_receive.cpp)
     add_executable(tmp_multi_server src/tmp_multi_server.cpp)
     add_executable(tmp_visualize_send src/tmp_visualize_send.cpp)
+    add_executable(tmp_http src/tmp_http.cpp)
 endif()
 
 target_link_libraries(CameraServer
@@ -106,6 +107,10 @@ if (ENABLE_TESTS)
         )
     target_link_libraries(tmp_visualize_send
         ${OpenCV_LIBS}
+        )
+    target_link_libraries(tmp_http
+        ${OpenCV_LIBS}
+        curl
         )
 endif()
 
