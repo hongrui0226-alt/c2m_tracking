@@ -91,6 +91,7 @@ target_link_libraries(CameraServer
     pthread
     alog
     dl
+    curl
 )
 
 if (ENABLE_TESTS)

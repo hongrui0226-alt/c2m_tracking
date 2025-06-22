@@ -606,7 +606,7 @@ void Tracker::tracking_group(const cv::Mat& frame,
                     lock_guard<mutex> lock(mtx);
                     visualize_images.push_back(visualized_frame);
                     visualize_names.push_back(
-                        cv::format("frame_%d.png", frame_count+1)
+                        cv::format("frame_%d.jpg", frame_count+1)
                     );
                 }
                 
@@ -862,7 +862,7 @@ void Tracker::tracking_group(const cv::Mat& frame,
             lock_guard<mutex> lock(mtx);
             visualize_images.push_back(visualized_frame);
             visualize_names.push_back(
-                cv::format("frame_%d.png", frame_count+1)
+                cv::format("frame_%d.jpg", frame_count+1)
             );
         }
             
