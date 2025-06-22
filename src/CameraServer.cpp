@@ -445,6 +445,11 @@ bool CameraServer::encodeImage(const cv::Mat& img, std::vector<unsigned char>& b
 
 void CameraServer::uploadImages(const std::vector<cv::Mat>& images, const std::vector<string> names, 
                                 const DataLoopInfo& info) {
+    if (images.empty()) {
+        cout << "No images to upload" << endl;
+        return;
+    }
+    
     CURL* curl = curl_easy_init();
     if (!curl) return;
 
