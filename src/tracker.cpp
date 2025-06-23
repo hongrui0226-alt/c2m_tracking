@@ -147,6 +147,7 @@ cv::Mat Tracker::crop_and_pad_by_contour(const cv::Mat& image, const cv::Mat& bl
         cv::cvtColor(image, gray, cv::COLOR_BGR2GRAY);
         cv::cvtColor(blank, blank_gray, cv::COLOR_BGR2GRAY);
         cv::absdiff(gray, blank_gray, diff);
+        GaussianBlur(diff, diff, cv::Size(5, 5), 0);  // 模糊去噪，利于抠图
         cv::threshold(diff, thresh, binary_threshold, 255, cv::THRESH_BINARY);
 
         // 形态学开运算去噪
@@ -262,7 +263,7 @@ vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame) {
 
     // 使用Canny边缘检测
     cv::Mat edges;
-    Canny(blurred, edges, 50, 100);
+    Canny(blurred, edges, 30, 90);
 
     // 创建椭圆结构元素
     cv::Mat close_kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(7, 7));
@@ -278,14 +279,14 @@ vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame) {
 
     int valid_count = 0;
     for (const auto& contour : contours) {
-        // 面积过滤
-        double area = cv::contourArea(contour);
-        if ((area <= MIN_CONTOUR_AREA || area >= 460*450) && (area >10.0)) continue;
-
         // 边界框计算
         cv::Rect bbox = cv::boundingRect(contour);
         int x = bbox.x, y = bbox.y, w = bbox.width, h = bbox.height;
         if (w == 0 || h == 0) continue;
+
+        // 面积过滤
+        double area = cv::contourArea(contour);
+        if ((area <= MIN_CONTOUR_AREA || area >= 460*450) && (w*h <= 2*area)) continue;
 
         // // 边缘检测（Laplacian算子）
         // auto t10 = high_resolution_clock::now();
