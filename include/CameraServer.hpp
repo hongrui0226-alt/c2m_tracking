@@ -77,4 +77,5 @@ public:
     bool encodeImage(const cv::Mat& img, std::vector<unsigned char>& buffer, const std::string& format);
     void uploadImages(const std::vector<cv::Mat>& images, const std::vector<string> names, const DataLoopInfo& info);
     std::string generateTimestamp(int suffix);
+    void write_timevals_to_binary_file(const std::string& filename, const std::vector<struct timeval>& data);
 };

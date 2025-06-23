@@ -15,7 +15,8 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
         char buffer[1024];
         int valread = read(client_socket, buffer, 1024);
         if (valread > 0) {
-            std::vector<uchar> serializedData;
+            vector<uchar> serializedData;
+            vector<struct timeval> timevals;
 
             if (socket_info.port == cam1_server_port && running) {
                 cout << "Starting recording on Camera 1..." << endl;
@@ -27,9 +28,8 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
                 while (cam1_tracker.is_track_over() == false && !over) {
                     if (camera_manager.getFrameQueueSize(camera_manager.camera1) > 0) {
                         Frame frame = camera_manager.getFrameQueue(camera_manager.camera1);
+                        timevals.push_back(frame.timestamp);
                         cv::Mat yuv_copy = frame.image.clone(); // 强制深拷贝YUV数据
-                        
-                        // 方案B：在颜色转换后深拷贝
                         cv::Mat bgr_img;
                         cv::cvtColor(yuv_copy, bgr_img, cv::COLOR_YUV2BGR_NV12);
                         cv::Mat bgr_copy = bgr_img.clone(); // 再拷贝一次BGR数据
@@ -52,6 +52,7 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
 
                 while ((camera_manager.getFrameQueueSize(camera_manager.camera1) > 0) && (cam1_tracker.is_track_over() == false)) {
                     Frame frame = camera_manager.getFrameQueue(camera_manager.camera1);
+                    timevals.push_back(frame.timestamp);
                     cv::Mat yuv_copy = frame.image.clone();
                     cv::cvtColor(yuv_copy, bgr_img, cv::COLOR_YUV2BGR_NV12); // Decode NV12 to BGR
                     cv::Mat bgr_copy = bgr_img.clone(); // 再拷贝一次BGR数据
@@ -59,7 +60,6 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
                     // cv::imwrite(cv::format("%d.png", frame_count), bgr_img);
                     cam1_tracker.track(bgr_copy, true);
                     frame_count++;
-                    cout << "frame_count: " << frame_count << endl;
                 }
 
                 cam1_tracker.post_process();
@@ -73,6 +73,7 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
                 info.type = "NonSequential";
                 info.version = "1";
                 uploadImages(cam1_tracker.getVisImages(), cam1_tracker.getVisNames(), info);
+                write_timevals_to_binary_file(cv::format("%d_output.txt", node_index*2-1), timevals);
 
                 cam1_tracker.reset(); // Reset tracker for next session
                 camera_manager.camera1.frame_queue_.clear(); // Clear Camera Queue to reset
@@ -90,17 +91,14 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
                 while (cam2_tracker.is_track_over() == false && !over) {
                     if (camera_manager.getFrameQueueSize(camera_manager.camera2) > 0) {
                         Frame frame = camera_manager.getFrameQueue(camera_manager.camera2);
+                        timevals.push_back(frame.timestamp);
                         cv::Mat yuv_copy = frame.image.clone(); // 强制深拷贝YUV数据
-                        
-                        // 方案B：在颜色转换后深拷贝
                         cv::Mat bgr_img;
                         cv::cvtColor(yuv_copy, bgr_img, cv::COLOR_YUV2BGR_NV12);
                         cv::Mat bgr_copy = bgr_img.clone(); // 再拷贝一次BGR数据
                         
                         // 使用深拷贝的数据进行跟踪和保存
                         cam2_tracker.track(bgr_copy, true);
-
-                        cout << "remain: " << camera_manager.getFrameQueueSize(camera_manager.camera2) << endl;
                         frame_count++;
                         if (frame_count + camera_manager.getFrameQueueSize(camera_manager.camera2) > 280) {
                             cout << "over" << endl;
@@ -116,6 +114,7 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
 
                 while ((camera_manager.getFrameQueueSize(camera_manager.camera2) > 0) && (cam2_tracker.is_track_over() == false)) {
                     Frame frame = camera_manager.getFrameQueue(camera_manager.camera2);
+                    timevals.push_back(frame.timestamp);
                     cv::Mat yuv_copy = frame.image.clone();
                     cv::cvtColor(yuv_copy, bgr_img, cv::COLOR_YUV2BGR_NV12); // Decode NV12 to BGR
                     cv::Mat bgr_copy = bgr_img.clone(); // 再拷贝一次BGR数据
@@ -128,7 +127,6 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
 
                 cam2_tracker.post_process();
                 serializedData = serializeMap(cam2_tracker.getTrackResults());
-                // send_visualize_data(client_socket, cam2_tracker.getVisImages(), cam2_tracker.getVisNames());
                 // 上传图像数据
                 DataLoopInfo info;
                 info.project_id = "231";
@@ -137,6 +135,7 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
                 info.type = "NonSequential";
                 info.version = "1";
                 uploadImages(cam2_tracker.getVisImages(), cam2_tracker.getVisNames(), info);
+                write_timevals_to_binary_file(cv::format("%d_output.txt", node_index*2), timevals);
 
                 cam2_tracker.reset(); // Reset tracker for next session
                 camera_manager.camera2.frame_queue_.clear(); // Clear Camera Queue to reset
@@ -527,6 +526,24 @@ std::string CameraServer::generateTimestamp(int suffix = 6) {
     // 拼接后缀
     std::string timestamp = std::string(buffer) + "_" + std::to_string(suffix);
     return timestamp;
+}
+
+void CameraServer::write_timevals_to_binary_file(const std::string& filename, 
+                                                const std::vector<struct timeval>& data) {
+    FILE* file = fopen(filename.c_str(), "w");
+    if (!file) {
+        perror("Failed to open file for writing");
+        return;
+    }
+
+    for (const auto& tv : data) {
+        struct tm* tm_utc = gmtime(&tv.tv_sec);  // 转换为 UTC 时间
+        char datetime[64];
+        strftime(datetime, sizeof(datetime), "%Y-%m-%dT%H:%M:%S", tm_utc);  // 格式化日期时间
+        fprintf(file, "%s.%06ld\n", datetime, tv.tv_usec);  // 写入 ISO 8601 格式时间戳
+    }
+
+    fclose(file);
 }
 
 bool CameraServer::getState() {
