@@ -116,7 +116,7 @@ private:
     int tail_threshold = 85;
     int vaild_area = 35;
     int hsv_separation = 150;  // HSV色调分离阈值  TODO：待定
-    int tolerance_undetected_num = 20;
+    int tolerance_undetected_num = 100;
     int binary_threshold = 10;
 
     // Track Flag
