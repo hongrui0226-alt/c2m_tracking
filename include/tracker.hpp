@@ -117,7 +117,7 @@ private:
     int vaild_area = 35;
     int hsv_separation = 150;  // HSV色调分离阈值  TODO：待定
     int tolerance_undetected_num = 20;
-    int binary_threshold = 50;
+    int binary_threshold = 10;
 
     // Track Flag
     bool detected_flag = false;

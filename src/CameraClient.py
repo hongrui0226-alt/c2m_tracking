@@ -155,42 +155,42 @@ def send_request_and_receive_data(
                 logger.error("接收数据大小失败")
                 return None
             
-            # 接收可视化数据
-            count_data = sockfd.recv(4)
-            count = struct.unpack('I', count_data)[0]
+            # # 接收可视化数据
+            # count_data = sockfd.recv(4)
+            # count = struct.unpack('I', count_data)[0]
             
             images = []
             names = []
             
-            # 2. 循环接收每个图像和对应的名称
-            for _ in range(count):
+            # # 2. 循环接收每个图像和对应的名称
+            # for _ in range(count):
                 
-                # 2.2 接收图像数据大小
-                image_size_data = sockfd.recv(8)
-                image_size = struct.unpack('Q', image_size_data)[0]
+            #     # 2.2 接收图像数据大小
+            #     image_size_data = sockfd.recv(8)
+            #     image_size = struct.unpack('Q', image_size_data)[0]
                 
-                # 2.3 接收图像数据
-                image_data = b''
-                while len(image_data) < image_size:
-                    chunk = sockfd.recv(min(buffer_size, image_size - len(image_data)))
-                    if not chunk:
-                        break
-                    image_data += chunk
+            #     # 2.3 接收图像数据
+            #     image_data = b''
+            #     while len(image_data) < image_size:
+            #         chunk = sockfd.recv(min(buffer_size, image_size - len(image_data)))
+            #         if not chunk:
+            #             break
+            #         image_data += chunk
                 
-                # 将字节数据转换为 numpy 数组
-                img_array = np.frombuffer(image_data, dtype=np.uint8)
-                img = img_array.reshape((480, 640, 3))
+            #     # 将字节数据转换为 numpy 数组
+            #     img_array = np.frombuffer(image_data, dtype=np.uint8)
+            #     img = img_array.reshape((480, 640, 3))
                 
-                # 2.4 接收图像名称长度
-                name_length_data = sockfd.recv(4)
-                name_length = struct.unpack('I', name_length_data)[0]
+            #     # 2.4 接收图像名称长度
+            #     name_length_data = sockfd.recv(4)
+            #     name_length = struct.unpack('I', name_length_data)[0]
                 
-                # 2.5 接收图像名称
-                name_data = sockfd.recv(name_length)
-                name = name_data.decode('utf-8')
+            #     # 2.5 接收图像名称
+            #     name_data = sockfd.recv(name_length)
+            #     name = name_data.decode('utf-8')
                 
-                images.append(img)
-                names.append(name)
+            #     images.append(img)
+            #     names.append(name)
 
             data_size = struct.unpack('Q', data_size_packed)[0]
             logger.info(f"即将接收数据，大小: {data_size} 字节")

@@ -35,7 +35,7 @@ public:
 
     CameraManager() : is_initialized(false), is_recording(false) {
         config.sensor_index = 28;
-	    config.exposure_seconds = 15e-5f;
+	    config.exposure_seconds = 125e-6f;
     }
 
     bool isInitialized() const {

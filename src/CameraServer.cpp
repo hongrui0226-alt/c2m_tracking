@@ -71,7 +71,7 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
                 info.sample_id = generateTimestamp(node_index*2 - 1).c_str();
                 info.operator_name = "discover";
                 info.type = "NonSequential";
-                info.version = "v1.0";
+                info.version = "1";
                 uploadImages(cam1_tracker.getVisImages(), cam1_tracker.getVisNames(), info);
 
                 cam1_tracker.reset(); // Reset tracker for next session
@@ -114,7 +114,7 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
                 camera_manager.camera2.stopCapture();
                 cout << "Stop recording on Camera 2..." << endl;
 
-                while ((camera_manager.getFrameQueueSize(camera_manager.camera2) > 0) && (cam1_tracker.is_track_over() == false)) {
+                while ((camera_manager.getFrameQueueSize(camera_manager.camera2) > 0) && (cam2_tracker.is_track_over() == false)) {
                     Frame frame = camera_manager.getFrameQueue(camera_manager.camera2);
                     cv::Mat yuv_copy = frame.image.clone();
                     cv::cvtColor(yuv_copy, bgr_img, cv::COLOR_YUV2BGR_NV12); // Decode NV12 to BGR
@@ -135,8 +135,8 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
                 info.sample_id = generateTimestamp(node_index*2).c_str();
                 info.operator_name = "discover";
                 info.type = "NonSequential";
-                info.version = "v1.0";
-                uploadImages(cam1_tracker.getVisImages(), cam1_tracker.getVisNames(), info);
+                info.version = "1";
+                uploadImages(cam2_tracker.getVisImages(), cam2_tracker.getVisNames(), info);
 
                 cam2_tracker.reset(); // Reset tracker for next session
                 camera_manager.camera2.frame_queue_.clear(); // Clear Camera Queue to reset
@@ -448,6 +448,8 @@ void CameraServer::uploadImages(const std::vector<cv::Mat>& images, const std::v
     if (images.empty()) {
         cout << "No images to upload" << endl;
         return;
+    } else {
+        cout << "Uploading Images Size: " << images.size() << endl;
     }
     
     CURL* curl = curl_easy_init();
