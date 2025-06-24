@@ -173,6 +173,7 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
 
 bool CameraServer::sendDataToClient(int client_socket, 
                                     const std::vector<uchar>& serializedData, 
+                                    const std::string& timestamp,
                                     int timeoutSeconds = 30) {
     size_t dataSize = serializedData.size();
     
@@ -181,6 +182,16 @@ bool CameraServer::sendDataToClient(int client_socket,
     tv.tv_sec = timeoutSeconds;
     tv.tv_usec = 0;
     setsockopt(client_socket, SOL_SOCKET, SO_SNDTIMEO, (char*)&tv, sizeof(tv));
+    
+    // 发送时间戳
+    if (send(client_socket, timestamp.c_str(), timestamp.size(), 0) != timestamp.size()) {
+        int error = errno;
+        if (error == EAGAIN || error == EWOULDBLOCK) {
+            std::cerr << "发送时间戳超时" << std::endl;
+        } else if (error == EPIPE || error == ECONNRESET) {
+            std::cerr << "客户端已关闭连接" << std::endl;
+        }
+    }
     
     // 发送数据大小
     if (send(client_socket, &dataSize, sizeof(dataSize), 0) != sizeof(dataSize)) {

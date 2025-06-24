@@ -148,6 +148,11 @@ def send_request_and_receive_data(
             sockfd.sendall(request_packed)
             logger.info(f"已发送请求，大小: {request_size} 字节")
             
+            # 接收时间戳
+            timestamp = sockfd.recv(1024)
+            timestamp = timestamp.decode('utf-8')
+            logger.info(f"接收到时间戳: {timestamp}")
+
             # 接收响应数据大小
             logger.debug("等待接收数据大小...")
             data_size_packed = sockfd.recv(struct.calcsize('Q'))
@@ -225,7 +230,7 @@ def send_request_and_receive_data(
                 return None
             
             logger.info(f"成功接收数据，总大小: {len(track_res_data)} 字节")
-            return track_res_data, images, names
+            return track_res_data, images, names, timestamp
             
         except (ConnectionResetError, BrokenPipeError) as e:
             logger.error(f"连接被服务器重置 (尝试 {attempt+1}/{max_retries}): {e}")
@@ -292,7 +297,7 @@ if __name__ == "__main__":
     # results = [get_tracking_results(ips[0], ports[0])]
     
     
-    for index, (track_resulsts, vis_imgs, vis_names) in enumerate(results):
+    for index, (track_resulsts, vis_imgs, vis_names, timestamp) in enumerate(results):
 
         # 创建保存目录
         if not os.path.exists(f"received_images_{index}"):
