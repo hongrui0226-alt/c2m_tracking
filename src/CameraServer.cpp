@@ -17,6 +17,7 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
         if (valread > 0) {
             vector<uchar> serializedData;
             vector<struct timeval> timevals;
+            string timestamp;
 
             if (socket_info.port == cam1_server_port && running) {
                 cout << "Starting recording on Camera 1..." << endl;
@@ -67,8 +68,9 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
                 // send_visualize_data(client_socket, cam1_tracker.getVisImages(), cam1_tracker.getVisNames());
                 // 上传图像数据
                 DataLoopInfo info;
+                timestamp = generateTimestamp(node_index*2 - 1);
                 info.project_id = "231";
-                info.sample_id = generateTimestamp(node_index*2 - 1).c_str();
+                info.sample_id = timestamp.c_str();
                 info.operator_name = "discover";
                 info.type = "NonSequential";
                 info.version = "1";
@@ -129,8 +131,9 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
                 serializedData = serializeMap(cam2_tracker.getTrackResults());
                 // 上传图像数据
                 DataLoopInfo info;
+                timestamp = generateTimestamp(node_index*2);
                 info.project_id = "231";
-                info.sample_id = generateTimestamp(node_index*2).c_str();
+                info.sample_id = timestamp.c_str();
                 info.operator_name = "discover";
                 info.type = "NonSequential";
                 info.version = "1";
@@ -147,7 +150,7 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
 
             try {
                 // send data
-                if (!sendDataToClient(client_socket, serializedData, 5)) {
+                if (!sendDataToClient(client_socket, serializedData, timestamp, 5)) {
                     std::cerr << "数据发送失败，关闭连接" << std::endl;
                     close(client_socket);
                     return;

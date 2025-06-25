@@ -72,7 +72,7 @@ public:
     vector<uchar> serializeImageData(const ImageData& data);
     vector<uchar> serializeMap(const unordered_map<int, ImageData>& map);
     bool getState();
-    bool sendDataToClient(int client_socket, const std::vector<uchar>& serializedData, int timeoutSeconds);
+    bool sendDataToClient(int client_socket, const std::vector<uchar>& serializedData, const string& timestamp, int timeoutSeconds);
     bool send_visualize_data(int sockfd, const std::vector<cv::Mat>& images, const std::vector<std::string>& names);
     bool encodeImage(const cv::Mat& img, std::vector<unsigned char>& buffer, const std::string& format);
     void uploadImages(const std::vector<cv::Mat>& images, const std::vector<string> names, const DataLoopInfo& info);
