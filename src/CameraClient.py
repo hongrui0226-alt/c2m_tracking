@@ -267,7 +267,7 @@ def get_tracking_results(server_ip, server_port):
     request = {"action": "get_track_results", "camera_id": 1}
     
     # 发送请求并接收数据
-    track_res_data, vis_imgs, vis_names = send_request_and_receive_data(server_ip, server_port, request)
+    track_res_data, vis_imgs, vis_names, timestamp = send_request_and_receive_data(server_ip, server_port, request)
     if track_res_data is None:
         print("请求失败或未接收到数据")
         exit(-1)
@@ -281,7 +281,7 @@ def get_tracking_results(server_ip, server_port):
     
     print(f"接收数据成功，包含 {len(track_resulsts)} 个键值对")
     
-    return track_resulsts, vis_imgs, vis_names
+    return track_resulsts, vis_imgs, vis_names, timestamp
 
 
 # 主函数
