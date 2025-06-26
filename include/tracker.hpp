@@ -14,6 +14,8 @@
 #include <utility> // 结构化绑定需要
 #include <opencv2/opencv.hpp>
 #include <unistd.h>
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/basic_file_sink.h>
 
 using namespace std;
 
@@ -131,6 +133,7 @@ private:
     std::vector<string> visualize_names;
     std::vector<TrackInfo> last_frame_info, current_frame_info;
     std::vector<TrackXY> last_frame_xy, current_frame_xy;
+    std::vector<std::string> frame_logs;
     std::unordered_map<int, ImageData> img2save;
     cv::Mat blank_orig, blank_orig_gray;
     cv::Mat blank_resize_gray, blank_rect_gray;
@@ -162,6 +165,8 @@ private:
         cv::Scalar color_untracked = cv::Scalar(0, 0, 255);
         int thickness = 1;
     } visualize_config;
+    int log_put_start_x = 160;  // 日志文本起始位置
+    int log_put_start_y = 10;  // 日志文本起始位置
     
 
 public:
@@ -224,5 +229,7 @@ public:
     void setOutputFolder(const string& path);
     vector<cv::Mat> getVisImages();
     vector<string> getVisNames(); 
+    void reset_each_frame();
+    void drawFrameLogs(cv::Mat& image, const vector<std::string>& logs);
 
 };

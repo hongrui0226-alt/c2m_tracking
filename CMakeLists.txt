@@ -53,6 +53,7 @@ endif()
 
 # 查找 OpenCV
 find_package(OpenCV REQUIRED)
+find_package(spdlog REQUIRED)
 
 # 添加包含目录
 include_directories(
@@ -93,6 +94,7 @@ target_link_libraries(CameraServer
     alog
     dl
     curl
+    spdlog::spdlog
 )
 
 if (ENABLE_TESTS)

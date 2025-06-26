@@ -35,16 +35,6 @@ FileInfo parse_file_info(const string& name) {
     return info;
 }
 
-std::unordered_map<int, ImageData> Tracker::getTrackResults() {
-    lock_guard<mutex> lock(mtx);
-    return img2save;
-}
-
-bool Tracker::is_track_over() {
-    lock_guard<mutex> lock(mtx);
-    return track_over_flag;
-}
-
 // int Tracker::find_vaild_frame(int dir) {
 //     int step = 3;
 //     std::cout << "total_frame num: " << total_frame << std::endl;
@@ -276,6 +266,8 @@ vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame) {
     std::vector<std::vector<cv::Point>> contours;
     cv::findContours(edges, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
     cv2_find_counter_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t9).count());
+    frame_logs.push_back(cv::format("Found %zu contours", contours.size()));  // add log
+    int vaild_num_contours = 0;
 
     int valid_count = 0;
     for (const auto& contour : contours) {
@@ -286,8 +278,12 @@ vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame) {
 
         // 面积过滤
         double area = cv::contourArea(contour);
-        if ((area <= MIN_CONTOUR_AREA || area >= 460*450) && (w*h <= 2*area)) continue;
-
+        if ((area <= MIN_CONTOUR_AREA || area >= 460*450) && (w*h <= 2*area)) {
+            frame_logs.push_back(
+                cv::format("Contour area %f = %dx%d , skipping", area, w, h)
+            );
+            continue;
+        }
         // // 边缘检测（Laplacian算子）
         // auto t10 = high_resolution_clock::now();
         // cv::Mat roi_gray = frame_gray(bbox);
@@ -344,8 +340,12 @@ vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame) {
         effect_image_time.push_back(
             duration_cast<milliseconds>(high_resolution_clock::now() - effect_start).count()
         );
+        vaild_num_contours++;
     }
 
+    frame_logs.push_back(
+        cv::format("Valid contours: %d", vaild_num_contours)
+    );
     // 输出性能统计
     auto print_time = [](const std::string& name, const std::vector<double>& times) {
         double total = std::accumulate(times.begin(), times.end(), 0.0);
@@ -564,6 +564,11 @@ void Tracker::tracking_group(const cv::Mat& frame,
                             frame_count+1, info.xy[0], info.xy[1], info.areas, info.state)
                 );
 
+                frame_logs.push_back(
+                    cv::format("LastEmpty: New %d -> (%d, %d)",
+                                info.id, info.xy[0], info.xy[1])
+                );
+
             } else {
                 cerr << "发现新积木，但不在入口区域！" << endl;
             }
@@ -595,14 +600,19 @@ void Tracker::tracking_group(const cv::Mat& frame,
                         putText(visualized_frame, "x", origin_xy, 
                                 visualize_config.font, visualize_config.font_scale,
                                 visualize_config.color_untracked, visualize_config.thickness);
+                        putText(visualized_frame, "x" + to_string(info.id), origin_xy, 
+                                visualize_config.font, visualize_config.font_scale,
+                                visualize_config.color_tracked, visualize_config.thickness);
                     } else {  // 已追踪到
                         putText(visualized_frame, to_string(info.id), origin_xy, 
                                 visualize_config.font, visualize_config.font_scale,
                                 visualize_config.color_tracked, visualize_config.thickness);
                     }
                 }
-                // imwrite(cv::format("%s/frame_%d.png", visualize_dir.c_str(), frame_count+1), 
-                //         visualized_frame);
+
+                // Put log text on the frame
+                drawFrameLogs(visualized_frame, frame_logs);
+
                 {
                     lock_guard<mutex> lock(mtx);
                     visualize_images.push_back(visualized_frame);
@@ -730,9 +740,16 @@ void Tracker::tracking_group(const cv::Mat& frame,
         auto& id = current_frame_info[min_index].id;
         auto& state = current_frame_info[min_index].state;
 
-        if (state == -1)  // 如果追踪到的也是未追踪的积木，则跳过
+        if (state == -1) {  // 如果追踪到的也是未追踪的积木，则跳过
+            frame_logs.push_back(
+                cv::format("UntrackLast: %d tracked untracked blocks, skip", last_id)
+            );
             continue;
-        if (id == last_id) {
+        }
+        if (id == last_id) {  // 追踪到和自己id相同的积木，则跳过
+            frame_logs.push_back(
+                cv::format("UntrackLast: %d tracked same id blocks, skip", last_id)
+            );
             cout << "Repeated occlusion ! " << endl;
             continue;
         }
@@ -763,9 +780,16 @@ void Tracker::tracking_group(const cv::Mat& frame,
             );
             // Delete the last_id
             img2save.erase(last_id);
+
+            frame_logs.push_back(
+                cv::format("UntrackLast : Merged %d with %d", last_id, id)
+            );
         }
         else {
             cout << last_id << "is lost with min_dist " << min_dist << endl;
+            frame_logs.push_back(
+                cv::format("UntrackLast : Lost %d with min_dist %f", last_id, min_dist)
+            );
         }
     }
 
@@ -778,11 +802,19 @@ void Tracker::tracking_group(const cv::Mat& frame,
             current_frame_info[idx].id = tracked_id++;
             current_frame_info[idx].motion = init_motion;
             current_frame_info[idx].state = 0;
+            
+            frame_logs.push_back(
+                cv::format("New block %d -> (%d, %d)", current_frame_info[idx].id, xy[0], xy[1])
+            );
         }
         //  遮挡后一分多
         else {
             // 计算该积木与当前帧所有其他的积木的距离，并找到最近的
             if (current_frame_info.size() <= 1) {
+                frame_logs.push_back(
+                    cv::format("UntrackCur: New %d but no other blocks", 
+                        current_frame_info[idx].id)
+                );
                 cout << "No other blocks in current frame! 新积木但不在入口处" << endl;
                 continue;
             }
@@ -800,11 +832,23 @@ void Tracker::tracking_group(const cv::Mat& frame,
             // 匹配到一个未被匹配的积木
             if (current_frame_info[min_idx].state == -1) {
                 cout << "Matched with another not matched block !" << endl;
+                frame_logs.push_back(
+                    cv::format("UntrackCur: Matched %d with %d but %d is not matched", 
+                        current_frame_info[idx].id, 
+                        current_frame_info[min_idx].id, 
+                        current_frame_info[min_idx].id)
+                );
                 continue;
             }
             // 距离过大，认为是异常追踪
             if (min_dist >= separate_dis_threshold) { 
                 cout << "Separate too far !" << min_dist << " > " << separate_dis_threshold << endl;
+                frame_logs.push_back(
+                    cv::format("UntrackCur: Matched %d with %d but distance %f > %d",
+                        current_frame_info[idx].id,
+                        current_frame_info[min_idx].id,
+                        min_dist, separate_dis_threshold)
+                );
                 continue;
             }
 
@@ -812,6 +856,13 @@ void Tracker::tracking_group(const cv::Mat& frame,
             current_frame_info[idx].motion = motion;
             current_frame_info[idx].id = current_frame_info[min_idx].id;
             current_frame_info[idx].state = 2;
+
+            frame_logs.push_back(
+                cv::format("UntrackCur: Matched %d with %d -> (%d, %d) state(2) with dist %f",
+                    current_frame_info[idx].id,
+                    current_frame_info[min_idx].id,
+                    xy[0], xy[1], min_dist)
+            );
 
         }
 
@@ -857,8 +908,10 @@ void Tracker::tracking_group(const cv::Mat& frame,
                         visualize_config.color_tracked, visualize_config.thickness);
             }
         }
-        // imwrite(cv::format("%s/frame_%d.png", visualize_dir.c_str(), frame_count+1), 
-        //         visualized_frame);
+
+        // Put log text on the frame
+        drawFrameLogs(visualized_frame, frame_logs);
+
         {
             lock_guard<mutex> lock(mtx);
             visualize_images.push_back(visualized_frame);
@@ -1155,6 +1208,10 @@ void Tracker::reset() {
     frame_count = 0;
 }
 
+void Tracker::reset_each_frame() {
+    frame_logs.clear();
+}
+
 vector<cv::Mat> Tracker::getVisImages() {
     lock_guard<mutex> lock(mtx);
     return visualize_images;
@@ -1163,6 +1220,34 @@ vector<cv::Mat> Tracker::getVisImages() {
 vector<string> Tracker::getVisNames() {
     lock_guard<mutex> lock(mtx);
     return visualize_names;
+}
+
+std::unordered_map<int, ImageData> Tracker::getTrackResults() {
+    lock_guard<mutex> lock(mtx);
+    return img2save;
+}
+
+bool Tracker::is_track_over() {
+    lock_guard<mutex> lock(mtx);
+    return track_over_flag;
+}
+
+void Tracker::drawFrameLogs(cv::Mat& image, const vector<std::string>& logs) {
+    int fontFace = cv::FONT_HERSHEY_SIMPLEX;
+    double fontScale = 0.4;
+    int thickness = 1;
+    cv::Scalar color(255, 255, 255);
+    int log_put_pos_x = log_put_start_x;
+    int log_put_pos_y = log_put_start_y;
+
+    for (const auto& line : logs) {
+        cv::putText(image, line, cv::Point(log_put_pos_x, log_put_pos_y), fontFace, fontScale, color, thickness);
+        log_put_pos_y += 10; // 每行间隔
+        if (log_put_pos_y >= image.rows) {
+            log_put_pos_y = log_put_start_y;
+            log_put_pos_x += 260;
+        }
+    }
 }
 
 // 整体流程：
@@ -1178,8 +1263,8 @@ vector<string> Tracker::getVisNames() {
 
 void Tracker::track(const cv::Mat& frame, bool visualize) {
     if (detected_flag) {  // 检测到有效帧后
+        reset_each_frame();
         vector<TrackedData> cv_res = cv_process_frame(frame);
-        
         if (cv_res.size() > 0) {
             // 检测到目标后，再执行tracking group
             tracking_group(frame, cv_res, visualize);
