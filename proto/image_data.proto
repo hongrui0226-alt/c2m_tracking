@@ -1,0 +1,19 @@
+// image_data.proto
+syntax = "proto3";
+
+package image_data;
+
+// 消息定义
+message Image {
+    bytes image_data = 1;
+    string name = 2;
+}
+
+message ImageData {
+    repeated Image images = 1;
+}
+
+message Response {
+    map<int32, ImageData> image_map = 1;
+    string timestamp = 2;
+}

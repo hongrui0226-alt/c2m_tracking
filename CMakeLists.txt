@@ -54,6 +54,17 @@ endif()
 # 查找 OpenCV
 find_package(OpenCV REQUIRED)
 find_package(spdlog REQUIRED)
+find_package(Protobuf REQUIRED)
+
+set(PROTO_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/proto)
+set(PROTO_OUT_DIR ${CMAKE_CURRENT_BINARY_DIR})
+message("CMAKE_CURRENT_SOURCE_DIR in lib: ${CMAKE_CURRENT_SOURCE_DIR}")
+message("CMAKE_CURRENT_BINARY_DIR in lib: ${CMAKE_CURRENT_BINARY_DIR}")
+
+# 生成 Protobuf 代码
+protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS
+    ${PROTO_SRC_DIR}/image_data.proto
+)
 
 # 添加包含目录
 include_directories(
@@ -62,6 +73,7 @@ include_directories(
     "${APP_DEPLOY_DIR}/multimedia_samples/utils"
     "${APP_DEPLOY_DIR}/multimedia_samples/vp_sensors"
     "include"
+    ${PROTO_OUT_DIR}
 )
 
 link_directories(
@@ -73,7 +85,10 @@ link_directories(
 # 添加可执行文件
 add_executable(CameraServer 
     src/CameraServer.cpp
-    src/tracker.cpp)
+    src/tracker.cpp
+    ${PROTO_SRCS}
+    ${PROTO_HDRS})
+
 if (ENABLE_TESTS)
     add_executable(tmp_server src/tmp_server.cpp)
     add_executable(tmp_receive src/tmp_receive.cpp)
@@ -95,6 +110,8 @@ target_link_libraries(CameraServer
     dl
     curl
     spdlog::spdlog
+    cpp-httplib
+    protobuf::libprotobuf
 )
 
 if (ENABLE_TESTS)

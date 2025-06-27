@@ -1,6 +1,140 @@
 #include "CameraServer.hpp"
 
 // 服务器主循环
+void CameraServer::create_serverloop(int port, httplib::Response& res) {
+
+    vector<uchar> serializedData;
+    vector<struct timeval> timevals;
+    string timestamp;
+
+    if (port == cam1_server_port && running) {
+        cout << "Starting recording on Camera 1..." << endl;
+        camera_manager.startRecording(camera_manager.camera1);
+        cv::Mat bgr_img;
+        bool over = false;
+        int frame_count = 0;
+
+        while (cam1_tracker.is_track_over() == false && !over) {
+            if (camera_manager.getFrameQueueSize(camera_manager.camera1) > 0) {
+                Frame frame = camera_manager.getFrameQueue(camera_manager.camera1);
+                timevals.push_back(frame.timestamp);
+                cv::Mat yuv_copy = frame.image.clone(); // 强制深拷贝YUV数据
+                cv::Mat bgr_img;
+                cv::cvtColor(yuv_copy, bgr_img, cv::COLOR_YUV2BGR_NV12);
+                cv::Mat bgr_copy = bgr_img.clone(); // 再拷贝一次BGR数据
+                
+                // 使用深拷贝的数据进行跟踪和保存
+                cam1_tracker.track(bgr_copy, true);
+
+                frame_count++;
+                if (frame_count + camera_manager.getFrameQueueSize(camera_manager.camera1) > 280) {
+                    cout << "over" << endl;
+                    over = true;
+                }
+            } else {
+                this_thread::sleep_for(chrono::milliseconds(1));
+            }
+        }
+
+        camera_manager.camera1.stopCapture();
+        cout << "Stop recording on Camera 1..." << endl;
+
+        while ((camera_manager.getFrameQueueSize(camera_manager.camera1) > 0) && (cam1_tracker.is_track_over() == false)) {
+            Frame frame = camera_manager.getFrameQueue(camera_manager.camera1);
+            timevals.push_back(frame.timestamp);
+            cv::Mat yuv_copy = frame.image.clone();
+            cv::cvtColor(yuv_copy, bgr_img, cv::COLOR_YUV2BGR_NV12); // Decode NV12 to BGR
+            cv::Mat bgr_copy = bgr_img.clone(); // 再拷贝一次BGR数据
+            // video_writer.write(bgr_img);
+            // cv::imwrite(cv::format("%d.png", frame_count), bgr_img);
+            cam1_tracker.track(bgr_copy, true);
+            frame_count++;
+        }
+
+        cam1_tracker.post_process();
+
+        // 回传上位机
+        timestamp = generateTimestamp(node_index*2 - 1);
+        std::string response2host = generateResponse(cam1_tracker.getTrackResults(), timestamp);
+        res.set_content(response2host, "application/octet-stream");
+
+        // 上传数据闭环
+        DataLoopInfo info;
+        info.project_id = "231";
+        info.sample_id = timestamp.c_str();
+        info.operator_name = "discover";
+        info.type = "NonSequential";
+        info.version = "1";
+        uploadImages(cam1_tracker.getVisImages(), cam1_tracker.getVisNames(), info);
+
+        cam1_tracker.reset(); // Reset tracker for next session
+        camera_manager.camera1.frame_queue_.clear(); // Clear Camera Queue to reset
+
+    } else if (port == cam2_server_port && running) {
+        cout << "Starting recording on Camera 2..." << endl;
+        camera_manager.startRecording(camera_manager.camera2);
+        cv::Mat bgr_img;
+        bool over = false;
+        int frame_count = 0;
+
+        while (cam2_tracker.is_track_over() == false && !over) {
+            if (camera_manager.getFrameQueueSize(camera_manager.camera2) > 0) {
+                Frame frame = camera_manager.getFrameQueue(camera_manager.camera2);
+                timevals.push_back(frame.timestamp);
+                cv::Mat yuv_copy = frame.image.clone(); // 强制深拷贝YUV数据
+                cv::Mat bgr_img;
+                cv::cvtColor(yuv_copy, bgr_img, cv::COLOR_YUV2BGR_NV12);
+                cv::Mat bgr_copy = bgr_img.clone(); // 再拷贝一次BGR数据
+                
+                // 使用深拷贝的数据进行跟踪和保存
+                cam2_tracker.track(bgr_copy, true);
+                frame_count++;
+                if (frame_count + camera_manager.getFrameQueueSize(camera_manager.camera2) > 280) {
+                    cout << "over" << endl;
+                    over = true;
+                }
+            } else {
+                this_thread::sleep_for(chrono::milliseconds(1));
+            }
+        }
+
+        camera_manager.camera2.stopCapture();
+        cout << "Stop recording on Camera 2..." << endl;
+
+        while ((camera_manager.getFrameQueueSize(camera_manager.camera2) > 0) && (cam2_tracker.is_track_over() == false)) {
+            Frame frame = camera_manager.getFrameQueue(camera_manager.camera2);
+            timevals.push_back(frame.timestamp);
+            cv::Mat yuv_copy = frame.image.clone();
+            cv::cvtColor(yuv_copy, bgr_img, cv::COLOR_YUV2BGR_NV12); // Decode NV12 to BGR
+            cv::Mat bgr_copy = bgr_img.clone(); // 再拷贝一次BGR数据
+            cam2_tracker.track(bgr_copy, true);
+            frame_count++;
+        }
+
+        cam2_tracker.post_process();
+
+        // 回传上位机
+        timestamp = generateTimestamp(node_index*2);
+        std::string response2host = generateResponse(cam2_tracker.getTrackResults(), timestamp);
+        res.set_content(response2host, "application/octet-stream");
+
+        // 上传数据闭环
+        DataLoopInfo info;
+        info.project_id = "231";
+        info.sample_id = timestamp.c_str();
+        info.operator_name = "discover";
+        info.type = "NonSequential";
+        info.version = "1";
+        uploadImages(cam2_tracker.getVisImages(), cam2_tracker.getVisNames(), info);
+        // write_timevals_to_binary_file(cv::format("%d_output.txt", node_index*2), timevals);
+
+        cam2_tracker.reset(); // Reset tracker for next session
+        camera_manager.camera2.frame_queue_.clear(); // Clear Camera Queue to reset
+
+    }
+
+}
+
 void CameraServer::serverLoop(SocketInfo& socket_info) {
 
     // Running server logic
@@ -64,11 +198,13 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
                 }
 
                 cam1_tracker.post_process();
+
+                // 回传上位机
                 serializedData = serializeMap(cam1_tracker.getTrackResults());
                 // send_visualize_data(client_socket, cam1_tracker.getVisImages(), cam1_tracker.getVisNames());
-                // 上传图像数据
+
+                // 上传数据闭环
                 DataLoopInfo info;
-                timestamp = generateTimestamp(node_index*2 - 1);
                 info.project_id = "231";
                 info.sample_id = timestamp.c_str();
                 info.operator_name = "discover";
@@ -294,9 +430,20 @@ void CameraServer::start() {
     if (running) return;
 
     running = true;
-    cam1_server_thread = thread(&CameraServer::serverLoop, this, ref(cam1_socket_info));
-    cam2_server_thread = thread(&CameraServer::serverLoop, this, ref(cam2_socket_info));
+    // cam1_server_thread = thread(&CameraServer::serverLoop, this, ref(cam1_socket_info));
+    // cam2_server_thread = thread(&CameraServer::serverLoop, this, ref(cam2_socket_info));
+    // 使用线程启动各个服务器
+    cam1_server_thread = thread([this]() {
+        std::cout << "Server 1 started at http://localhost:8085\n";
+        svr1.listen("localhost", 8085);
+    });
 
+    cam2_server_thread = thread([this]() {
+        std::cout << "Server 2 started at http://localhost:8086\n";
+        svr2.listen("localhost", 8086);
+    });
+
+    this_thread::sleep_for(chrono::nanoseconds(1000));  // 等待服务器启动
 }
 
 void CameraServer::stop() {
@@ -309,26 +456,8 @@ void CameraServer::stop() {
         running = false;
     }
 
-    // 使用shutdown而非close，确保accept()立即返回
-    if (cam1_socket_info.fd >= 0) {
-        shutdown(cam1_socket_info.fd, SHUT_RDWR);  // 中断所有I/O操作
-        close(cam1_socket_info.fd);
-        cam1_socket_info.fd = -1;
-    }
-
-    if (cam2_socket_info.fd >= 0) {
-        shutdown(cam2_socket_info.fd, SHUT_RDWR);  // 中断所有I/O操作
-        close(cam2_socket_info.fd);
-        cam2_socket_info.fd = -1;
-    }
-    
-    if (cam1_server_thread.joinable()) {
-        cam1_server_thread.join();
-    }
-
-    if (cam2_server_thread.joinable()) {
-        cam2_server_thread.join();
-    }
+    svr1.stop();
+    svr2.stop();
 }
     
 std::vector<uchar> CameraServer::serializeMat(const cv::Mat& mat) {
@@ -558,6 +687,61 @@ void CameraServer::write_timevals_to_binary_file(const std::string& filename,
     }
 
     fclose(file);
+}
+
+std::string CameraServer::generateResponse(
+    const std::unordered_map<int, ImageData>& img2save, 
+    const std::string& timestamp) 
+{
+    image_data::Response response;
+
+    // 将 img2save 转换为 Protobuf 的 Map 类型
+    std::unordered_map<int, image_data::ImageData> img2saveProtobuf = convertProtoMap(img2save);
+
+    // 将 img2save 中的数据复制到 response 的 image_map 中
+    for (const auto& [key, imageData] : img2saveProtobuf) {
+    (*response.mutable_image_map())[key] = imageData;
+    }
+
+    response.set_timestamp(timestamp.c_str());
+
+    // 序列化为二进制
+    std::string serialized;
+    response.SerializeToString(&serialized);
+    return serialized;
+}
+
+std::unordered_map<int, image_data::ImageData> CameraServer::convertProtoMap(
+    const std::unordered_map<int, ImageData>& custom_img2save) {
+    
+    std::unordered_map<int, image_data::ImageData> proto_img2save;
+    
+    for (const auto& [id, custom_data] : custom_img2save) {
+        image_data::ImageData proto_data;
+        // 检查图像和文件名数量是否一致
+        if (custom_data.images.size() != custom_data.names.size()) {
+            std::cerr << "Error: Image and name counts mismatch for ID " << id << std::endl;
+            continue;
+        }
+        
+        for (size_t i = 0; i < custom_data.images.size(); ++i) {
+            // 为每个图像创建一个新的Image消息
+            auto* proto_image = proto_data.add_images();
+            
+            // 将cv::Mat转换为字节数组
+            std::vector<uchar> buffer;
+            cv::imencode(".jpg", custom_data.images[i], buffer);
+            
+            // 设置图像数据和名称
+            proto_image->set_image_data(buffer.data(), buffer.size());
+            proto_image->set_name(custom_data.names[i]);
+        }
+        
+        // 将转换后的数据添加到新的map中
+        proto_img2save[id] = proto_data;
+    }
+    
+    return proto_img2save;
 }
 
 bool CameraServer::getState() {

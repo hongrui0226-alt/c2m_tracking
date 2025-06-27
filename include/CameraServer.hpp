@@ -1,6 +1,11 @@
 #include "CameraManager.hpp"
 #include "tracker.hpp"
 #include <curl/curl.h>
+#include "image_data.pb.h"
+#include "httplib.h"
+#include <functional>
+
+using HandlerFunction = std::function<void(httplib::Response&)>;
 
 struct SocketInfo {
     int fd;  // Socket文件描述符
@@ -25,7 +30,7 @@ private:
     int cam1_server_fd, cam2_server_fd;
     int cam1_server_port, cam2_server_port;
     int node_index;
-    SocketInfo cam1_socket_info, cam2_socket_info;
+    httplib::Server svr1, svr2;
 
     atomic<bool> running;
     thread cam1_server_thread, cam2_server_thread;
@@ -45,12 +50,20 @@ public:
         cam2_server_port(cam2_server_port), 
         node_index(node_index),
         running(false) {
-            cam1_socket_info.port = cam1_server_port;
-            cam2_socket_info.port = cam2_server_port;
 
-            // Init server sockets
-            initServerSocket(cam1_socket_info);
-            initServerSocket(cam2_socket_info);
+            // // Init server sockets
+            // initServerSocket(cam1_socket_info);
+            // initServerSocket(cam2_socket_info);
+
+            svr1.Get("/get_data", [this, cam1_server_port]
+                    (const httplib::Request&, httplib::Response& res) {
+                this->create_serverloop(cam1_server_port, res);
+            });
+            
+            svr2.Get("/get_data", [this, cam2_server_port]
+                    (const httplib::Request&, httplib::Response& res) {
+                this->create_serverloop(cam2_server_port, res);
+            });
 
             // Init camera_manager
             if (!camera_manager.isInitialized()) {
@@ -78,4 +91,8 @@ public:
     void uploadImages(const std::vector<cv::Mat>& images, const std::vector<string> names, const DataLoopInfo& info);
     std::string generateTimestamp(int suffix);
     void write_timevals_to_binary_file(const std::string& filename, const std::vector<struct timeval>& data);
+    std::string generateResponse(const std::unordered_map<int, ImageData>& img2save, const std::string& timestamp);
+    void create_serverloop(int port, httplib::Response& res);
+    std::unordered_map<int, image_data::ImageData> convertProtoMap(
+        const std::unordered_map<int, ImageData>& custom_img2save);
 };
