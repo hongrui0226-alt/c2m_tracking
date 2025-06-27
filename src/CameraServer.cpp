@@ -434,13 +434,13 @@ void CameraServer::start() {
     // cam2_server_thread = thread(&CameraServer::serverLoop, this, ref(cam2_socket_info));
     // 使用线程启动各个服务器
     cam1_server_thread = thread([this]() {
-        std::cout << "Server 1 started at http://localhost:8085\n";
-        svr1.listen("localhost", 8085);
+        std::cout << "Server 1 started at http://0.0.0.0:8085\n";
+        svr1.listen("0.0.0.0", 8085);
     });
 
     cam2_server_thread = thread([this]() {
-        std::cout << "Server 2 started at http://localhost:8086\n";
-        svr2.listen("localhost", 8086);
+        std::cout << "Server 2 started at http://0.0.0.0:8086\n";
+        svr2.listen("0.0.0.0", 8086);
     });
 
     this_thread::sleep_for(chrono::nanoseconds(1000));  // 等待服务器启动
