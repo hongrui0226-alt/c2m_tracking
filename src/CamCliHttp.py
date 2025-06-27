@@ -2,8 +2,12 @@ import requests
 import cv2
 import numpy as np
 import os
-from proto.image_data_pb2 import Response
+import sys
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).parent.parent))
+from proto.image_data_pb2 import Response
 
 # 定义ImageData类，对应C++中的ImageData结构
 class ImageData:
