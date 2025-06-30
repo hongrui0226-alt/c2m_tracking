@@ -231,40 +231,41 @@ vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame) {
     cv::absdiff(blank_rect_gray, frame_gray, diff);
     np_abs_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t4).count());
 
-    // // 5. 阈值处理
-    // auto t6 = high_resolution_clock::now();
-    // cv::Mat thresh;
-    // cv::threshold(diff, thresh, binary_threshold, 255, cv::THRESH_BINARY);
-    // cv2_threshold_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t6).count());
+    // 5. 阈值处理
+    auto t6 = high_resolution_clock::now();
+    cv::Mat thresh;
+    cv::threshold(diff, thresh, binary_threshold, 255, cv::THRESH_BINARY);
+    cv2_threshold_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t6).count());
 
-    // // 6. 形态学操作
-    // auto t7 = high_resolution_clock::now();
-    // cv::Mat fg_mask;
-    // cv::erode(thresh, fg_mask, kernel, cv::Point(-1, -1), 1);
-    // cv2_erode_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t7).count());
+    // 6. 形态学操作
+    auto t7 = high_resolution_clock::now();
+    cv::Mat fg_mask;
+    GaussianBlur(thresh, thresh, cv::Size(5, 5), 0);
+    cv::erode(thresh, fg_mask, kernel, cv::Point(-1, -1), 1);
+    cv2_erode_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t7).count());
 
-    // auto t8 = high_resolution_clock::now();
-    // cv::dilate(fg_mask, fg_mask, kernel, cv::Point(-1, -1), 1);
-    // cv2_dilate_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t8).count());
+    auto t8 = high_resolution_clock::now();
+    cv::dilate(fg_mask, fg_mask, kernel, cv::Point(-1, -1), 1);
+    cv2_dilate_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t8).count());
 
-    // 高斯模糊减少噪声
-    cv::Mat blurred;
-    GaussianBlur(diff, blurred, cv::Size(5, 5), 0);
+    // // 高斯模糊减少噪声
+    // cv::Mat blurred;
+    // GaussianBlur(diff, blurred, cv::Size(5, 5), 0);
 
-    // 使用Canny边缘检测
-    cv::Mat edges;
-    Canny(blurred, edges, 30, 90);
+    // // // 使用Canny边缘检测
+    // cv::Mat edges;
+    // // Canny(blurred, edges, 30, 90);
 
-    // 创建椭圆结构元素
-    cv::Mat close_kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(7, 7));
+    // // 创建椭圆结构元素
+    // cv::Mat close_kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(7, 7));
 
-    // 形态学闭运算
-    morphologyEx(edges, edges, cv::MORPH_CLOSE, close_kernel);
+    // // 形态学闭运算
+    // morphologyEx(fg_mask, edges, cv::MORPH_CLOSE, close_kernel);
 
     // 7. 轮廓检测
     auto t9 = high_resolution_clock::now();
     std::vector<std::vector<cv::Point>> contours;
-    cv::findContours(edges, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    cv::findContours(fg_mask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
     cv2_find_counter_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t9).count());
     frame_logs.push_back(cv::format("Found %zu contours", contours.size()));  // add log
     int vaild_num_contours = 0;
@@ -1047,6 +1048,13 @@ void Tracker::save_results(bool save_error=true) {
             }
         }
     }
+
+    // Save visualize images
+    if (!visualize_images.empty()) {
+        for (int i=0; i<visualize_images.size(); i++) {
+            cv::imwrite((fs::path(visualize_dir) / visualize_names[i]).string(), visualize_images[i]);
+        }
+    }
 }
 
 void Tracker::post_process() {
@@ -1269,7 +1277,7 @@ void Tracker::track(const cv::Mat& frame, bool visualize) {
             // 检测到目标后，再执行tracking group
             tracking_group(frame, cv_res, visualize);
             undetected_frame_count = 0;
-            cout << "出现目标" << cv_res.size() << endl;
+            // cout << "出现目标" << cv_res.size() << endl;
         }
         else {
             // 连续5帧未检测到目标，则认为下落结束
@@ -1277,12 +1285,12 @@ void Tracker::track(const cv::Mat& frame, bool visualize) {
             if (undetected_frame_count == tolerance_undetected_num) {
                 lock_guard<mutex> lock(mtx);
                 track_over_flag = true;
+                cout << "下落结束, 共 " << frame_count << " 帧" << endl;
             }
-            cout << "没有目标" << undetected_frame_count << endl;
         }
     }
     else {  // 未检测到有效帧
-        if (invaild_num > 0) {
+        if (invaild_num > 0) {  // 跳过前几个无效帧
             blank_orig = frame;
             // first_frame_flag = false;
             invaild_num--;
@@ -1304,7 +1312,7 @@ void Tracker::track(const cv::Mat& frame, bool visualize) {
         }
         else {
             blank_orig = frame;
-            cout << "未检测到有效帧" << endl;
+            // cout << "未检测到有效帧" << endl;
         }
             
     }
@@ -1370,10 +1378,91 @@ void Tracker::track_video(const string& video_path) {
         track(frame, true);
         if (track_over_flag) break;
     }
+    save_results();
+    reset();
+
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
     std::cout << "Track 执行时间: " << duration << " 微秒" << std::endl;
+
+}
+
+// 提取文件名中的数字
+int extractNumber(const std::string& filename) {
+    std::string name = fs::path(filename).stem().string(); // 去掉扩展名
+    return std::stoi(name);
+}
+
+// 自定义比较函数：按数字排序
+bool naturalSort(const fs::path& a, const fs::path& b) {
+    return extractNumber(a.string()) < extractNumber(b.string());
+}
+void Tracker::track_imgs(const string& img_folder) {
+    std::vector<fs::path> imageFiles;
+
+    // 创建输出目录
+    string video_name = fs::path(img_folder).stem().string();
+    output_image_folder = fs::path(img_folder).parent_path() / "tracking_images" / video_name;
+    result_dir = output_image_folder + "/result";
+    visualize_dir = output_image_folder + "/visualize";
+
+    vector<std::string> dirs_to_create = {
+        result_dir, visualize_dir
+    };
+    
+    for (const auto& dir : dirs_to_create) {
+        fs::create_directories(dir);
+    }
+
+    cout << "Processing images in " << img_folder << endl;
+    auto start = std::chrono::high_resolution_clock::now();
+    
+    // 读取图片文件夹下的所有图片
+    for (const auto& entry : fs::directory_iterator(img_folder)) {
+        if (entry.is_regular_file() && entry.path().extension() == ".png") {
+            imageFiles.push_back(entry.path());
+        }
+    }
+    // 按自然顺序排序
+    std::sort(imageFiles.begin(), imageFiles.end(), naturalSort);
+    
+    for (const auto& entry : imageFiles) {
+        string img_path = entry.string();
+        cout << "Processing image: " << img_path << endl;
+        cv::Mat frame = cv::imread(img_path);
+        if (frame.empty()) {
+            cout << "Error: Could not read image: " << img_path << endl;
+            continue;
+        }
+        track(frame, true);
+        if (track_over_flag) break;
+    }
     save_results();
+    reset();
+
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    std::cout << "Track 执行时间: " << duration << " 微秒" << std::endl;
+}
+
+void Tracker::track_video_folder(const string& video_folder) {
+    // 读取视频文件夹下的所有视频
+    for (const auto& entry : fs::directory_iterator(video_folder)) {
+        if (entry.is_regular_file() && entry.path().extension() == ".avi") {
+            string video_path = entry.path().string();
+            std::cout << "Processing video: " << video_path << std::endl;
+            track_video(video_path);
+        }
+    }
+}
+
+void Tracker::track_imgs_folder(const string& imgs_parent_folder) { 
+    for (const auto& entry : fs::directory_iterator(imgs_parent_folder)) {
+        if (entry.is_directory()) {
+            string img_folder = entry.path().string();
+            track_imgs(img_folder);
+        }
+    }
 
 }
 

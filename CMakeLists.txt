@@ -112,6 +112,7 @@ target_link_libraries(CameraServer
     spdlog::spdlog
     cpp-httplib
     protobuf::libprotobuf
+    gflags
 )
 
 if (ENABLE_TESTS)

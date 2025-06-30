@@ -4,6 +4,7 @@
 #include "image_data.pb.h"
 #include "httplib.h"
 #include <functional>
+#include <gflags/gflags.h>
 
 using HandlerFunction = std::function<void(httplib::Response&)>;
 

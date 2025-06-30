@@ -1,5 +1,7 @@
 #include "CameraServer.hpp"
 
+DEFINE_string(process_folder, "/home/sunrise/qimeng/dataset/videos", "Process folder which is used to track");
+
 // 服务器主循环
 void CameraServer::create_serverloop(int port, httplib::Response& res) {
 
@@ -756,7 +758,7 @@ void signal_handler(int sig) {
     cout << "\nReceived signal to terminate. Cleaning up..." << endl;
 }
 
-int main() {
+int main(int argc, char** argv) {
     // 注册信号处理
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
@@ -779,9 +781,9 @@ int main() {
     cout << "Server stopped. Exiting." << endl;
 
     // Tracker tracker;
-
-    // string video_path = "/home/sunrise/qimeng3/dataset/videos/output_2.avi";
-    // tracker.track_video(video_path);
+    // google::ParseCommandLineFlags(&argc, &argv, true);
+    // tracker.track_imgs_folder(FLAGS_process_folder);
+    // tracker.track_video_folder(FLAGS_process_folder);
 
     return 0;
 }

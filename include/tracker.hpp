@@ -119,7 +119,7 @@ private:
     int vaild_area = 35;
     int hsv_separation = 150;  // HSV色调分离阈值  TODO：待定
     int tolerance_undetected_num = 100;
-    int binary_threshold = 10;
+    int binary_threshold = 20;
 
     // Track Flag
     bool detected_flag = false;
@@ -188,7 +188,7 @@ public:
         kmeans(2, 100, 42) {
         
         right_width = static_cast<int>(check_length / scale_x);
-        std::cout << "right_width (after cast): " << right_width << std::endl;
+        // std::cout << "right_width (after cast): " << right_width << std::endl;
         
         // 初始化可视化配置
         visualize_config.color_tracked = cv::Scalar(0, 255, 0);    // 绿色
@@ -221,6 +221,9 @@ public:
     void save_results(bool save_error);
     void track(const cv::Mat& frame, bool visualize);
     void track_video(const string& video_path);
+    void track_video_folder(const string& video_folder);
+    void track_imgs(const string& img_folder);
+    void track_imgs_folder(const string& imgs_parent_folder);
     std::vector<cv::Mat> videoToFrames(const std::string& videoPath);
     bool is_track_over();
     std::unordered_map<int, ImageData> getTrackResults();
