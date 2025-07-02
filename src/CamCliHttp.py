@@ -23,9 +23,11 @@ def save_image(image_data, file_name):
 
 def decode_map(images_data):
     res_data = ImageData()
-    for name, image in zip(images_data.names, images_data.images):
-        res_data.images.append(image)
-        res_data.names.append(name)
+    for image in images_data.images:
+        nparr = np.frombuffer(image.image_data)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        res_data.images.append(img)
+        res_data.names.append(image.name)
 
 def parase_data(response):
     # 解析protobuf消息
