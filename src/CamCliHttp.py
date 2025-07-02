@@ -28,6 +28,7 @@ def decode_map(images_data):
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         res_data.images.append(img)
         res_data.names.append(image.name)
+    return res_data
 
 def parase_data(response):
     # 解析protobuf消息
