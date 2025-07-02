@@ -183,16 +183,45 @@ cv::Mat Tracker::crop_and_pad_by_contour(const cv::Mat& image, const cv::Mat& bl
     }
 }
 
-vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame) {
+cv::Mat Tracker::createGridImage(const std::vector<cv::Mat>& images, int rows, int cols) {
+    int width = images[0].cols;
+    int height = images[0].rows;
+
+    // 创建空白画布
+    cv::Mat result(height * rows, width * cols, CV_8UC3, cv::Scalar(0, 0, 0));
+
+    for (int i = 0; i < rows; ++i) {
+        for (int j = 0; j < cols; ++j) {
+            int index = i * cols + j;
+            if (index < images.size()) {
+                if (images[index].channels() == 1) {
+                    cv::Mat image_3c;
+                    cv::cvtColor(images[index], image_3c, cv::COLOR_GRAY2BGR);
+                    cv::Mat roi(result, cv::Rect(j * width, i * height, width, height));
+                    image_3c.copyTo(roi);
+                } else {
+                    cv::Mat roi(result, cv::Rect(j * width, i * height, width, height));
+                    images[index].copyTo(roi);
+                }
+            }
+            // 否则保留空白（黑色）
+        }
+    }
+
+    return result;
+}
+
+vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame, bool debug=false) {
     using namespace std::chrono;
     static const int MIN_CONTOUR_AREA = 100; // 需根据实际定义
-    static const int SOBEL_THRESH = 50;       // 需根据实际定义
-    
+    static const int SOBEL_THRESH = 50;       // 需根据实际定义   
+
     // int bianli = front_frame;
     auto start_time = high_resolution_clock::now();
 
     // TrackedData tracked_data;
     vector<TrackedData> res_data;
+    // vector<cv::Mat> tmp_debug_imgs;
 
     // int current_cpu = sched_getcpu(); // 获取当前CPU核心
     // std::cout << "当前进程 (PID: " << getpid() << ") 正在 CPU " << current_cpu << " 上运行\n";
@@ -239,13 +268,13 @@ vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame) {
 
     // 6. 形态学操作
     auto t7 = high_resolution_clock::now();
-    cv::Mat fg_mask;
-    GaussianBlur(thresh, thresh, cv::Size(5, 5), 0);
-    cv::erode(thresh, fg_mask, kernel, cv::Point(-1, -1), 1);
+    cv::Mat fg_mask, bulred, eroded;
+    GaussianBlur(thresh, bulred, cv::Size(5, 5), 0);
+    cv::erode(bulred, eroded, kernel, cv::Point(-1, -1), 1);
     cv2_erode_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t7).count());
 
     auto t8 = high_resolution_clock::now();
-    cv::dilate(fg_mask, fg_mask, kernel, cv::Point(-1, -1), 1);
+    cv::dilate(eroded, fg_mask, kernel, cv::Point(-1, -1), 1);
     cv2_dilate_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t8).count());
 
     // // 高斯模糊减少噪声
@@ -268,8 +297,15 @@ vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame) {
     cv::findContours(fg_mask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
     cv2_find_counter_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t9).count());
     frame_logs.push_back(cv::format("Found %zu contours", contours.size()));  // add log
-    int vaild_num_contours = 0;
 
+    if(debug) {
+        vector<cv::Mat> tmp_debug_imgs = {roi_frame, frame_gray, diff, thresh, bulred, eroded, fg_mask};
+        cv::Mat debug_img = createGridImage(tmp_debug_imgs, 3, 3);
+        cv_debug_images.push_back(debug_img);
+        cv_debug_names.push_back(cv::format("%d.jpg", frame_count));
+    }
+
+    int vaild_num_contours = 0;
     int valid_count = 0;
     for (const auto& contour : contours) {
         // 边界框计算
@@ -1272,7 +1308,7 @@ void Tracker::drawFrameLogs(cv::Mat& image, const vector<std::string>& logs) {
 void Tracker::track(const cv::Mat& frame, bool visualize) {
     if (detected_flag) {  // 检测到有效帧后
         reset_each_frame();
-        vector<TrackedData> cv_res = cv_process_frame(frame);
+        vector<TrackedData> cv_res = cv_process_frame(frame, visualize);
         if (cv_res.size() > 0) {
             // 检测到目标后，再执行tracking group
             tracking_group(frame, cv_res, visualize);
@@ -1306,7 +1342,7 @@ void Tracker::track(const cv::Mat& frame, bool visualize) {
                 cv::Rect(roi_x1, roi_y1, roi_x2-roi_x1, roi_y2-roi_y1)
             );
 
-            vector<TrackedData> cv_res = cv_process_frame(frame);
+            vector<TrackedData> cv_res = cv_process_frame(frame, visualize);
             tracking_group(frame, cv_res, visualize);
             cout << "检测到有效帧" << endl;
         }
@@ -1353,7 +1389,7 @@ vector<cv::Mat> Tracker::videoToFrames(const string& videoPath) {
     return frames;
 }
 
-void Tracker::track_video(const string& video_path) {
+void Tracker::track_FromVideo(const string& video_path) {
     // 读取视频，然后存成图片数组
     // 初始化数据：初始化保存路径
     
@@ -1397,7 +1433,8 @@ int extractNumber(const std::string& filename) {
 bool naturalSort(const fs::path& a, const fs::path& b) {
     return extractNumber(a.string()) < extractNumber(b.string());
 }
-void Tracker::track_imgs(const string& img_folder) {
+
+void Tracker::track_FromImgs(const string& img_folder, bool cv_debug=false) {
     std::vector<fs::path> imageFiles;
 
     // 创建输出目录
@@ -1405,9 +1442,10 @@ void Tracker::track_imgs(const string& img_folder) {
     output_image_folder = fs::path(img_folder).parent_path() / "tracking_images" / video_name;
     result_dir = output_image_folder + "/result";
     visualize_dir = output_image_folder + "/visualize";
+    cv_debug_dir = output_image_folder + "/cv_debug";
 
     vector<std::string> dirs_to_create = {
-        result_dir, visualize_dir
+        result_dir, visualize_dir, cv_debug_dir
     };
     
     for (const auto& dir : dirs_to_create) {
@@ -1437,6 +1475,16 @@ void Tracker::track_imgs(const string& img_folder) {
         track(frame, true);
         if (track_over_flag) break;
     }
+
+    // Save visualize images
+    if (cv_debug && !cv_debug_images.empty()) {
+        for (int i=0; i<cv_debug_images.size(); i++) {
+            cv::imwrite((fs::path(cv_debug_dir) / cv_debug_names[i]).string(), cv_debug_images[i]);
+        }
+    } else if (cv_debug_images.empty()) {
+        cout << "cv_debug_images is empty !" << endl;
+    }
+
     save_results();
     reset();
 
@@ -1445,25 +1493,33 @@ void Tracker::track_imgs(const string& img_folder) {
     std::cout << "Track 执行时间: " << duration << " 微秒" << std::endl;
 }
 
-void Tracker::track_video_folder(const string& video_folder) {
+void Tracker::track_FromVideosFolder(const string& video_folder) {
     // 读取视频文件夹下的所有视频
     for (const auto& entry : fs::directory_iterator(video_folder)) {
         if (entry.is_regular_file() && entry.path().extension() == ".avi") {
             string video_path = entry.path().string();
             std::cout << "Processing video: " << video_path << std::endl;
-            track_video(video_path);
+            track_FromVideo(video_path);
         }
     }
 }
 
-void Tracker::track_imgs_folder(const string& imgs_parent_folder) { 
+void Tracker::track_FromImgsFolder(const string& imgs_parent_folder) { 
     for (const auto& entry : fs::directory_iterator(imgs_parent_folder)) {
         if (entry.is_directory()) {
             string img_folder = entry.path().string();
-            track_imgs(img_folder);
+            track_FromImgs(img_folder);
         }
     }
+}
 
+void Tracker::cv_debug_FromImgsFolder(const string& imgs_parent_folder) {
+    for (const auto& entry : fs::directory_iterator(imgs_parent_folder)) {
+        if (entry.is_directory()) {
+            string img_folder = entry.path().string();
+            track_FromImgs(img_folder, true);
+        }
+    }
 }
 
 // int main() {

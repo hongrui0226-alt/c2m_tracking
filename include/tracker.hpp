@@ -129,8 +129,8 @@ private:
     int undetected_frame_count = 0;
 
     // Track 数据
-    std::vector<cv::Mat> visualize_images;
-    std::vector<string> visualize_names;
+    std::vector<cv::Mat> visualize_images, cv_debug_images;
+    std::vector<string> visualize_names, cv_debug_names;
     std::vector<TrackInfo> last_frame_info, current_frame_info;
     std::vector<TrackXY> last_frame_xy, current_frame_xy;
     std::vector<std::string> frame_logs;
@@ -146,6 +146,7 @@ private:
     std::string output_image_folder;
     std::string result_dir;
     std::string visualize_dir;
+    std::string cv_debug_dir;
     
     // // 共享内存（简化实现）
     // std::vector<TrackedData> shared_xy_areas;
@@ -209,7 +210,8 @@ public:
     // int find_vaild_frame(int dir);
     bool detect_block(const cv::Mat& frame, const cv::Mat& blank_frame);
     cv::Mat crop_and_pad_by_contour(const cv::Mat& image, const cv::Mat& blank, int target_size);
-    vector<TrackedData> cv_process_frame(const cv::Mat& frame);
+    cv::Mat createGridImage(const std::vector<cv::Mat>& images, int rows, int cols);
+    vector<TrackedData> cv_process_frame(const cv::Mat& frame, bool debug);
     void tracking_group(const cv::Mat& frame, 
                         vector<TrackedData>& tracked_datavec, 
                         bool visualize);
@@ -220,10 +222,10 @@ public:
         occlusion_spilt(const vector<string>& name_list, bool color_similar);
     void save_results(bool save_error);
     void track(const cv::Mat& frame, bool visualize);
-    void track_video(const string& video_path);
-    void track_video_folder(const string& video_folder);
-    void track_imgs(const string& img_folder);
-    void track_imgs_folder(const string& imgs_parent_folder);
+    void track_FromVideo(const string& video_path);
+    void track_FromVideosFolder(const string& video_folder);
+    void track_FromImgs(const string& img_folder, bool cv_debug);
+    void track_FromImgsFolder(const string& imgs_parent_folder);
     std::vector<cv::Mat> videoToFrames(const std::string& videoPath);
     bool is_track_over();
     std::unordered_map<int, ImageData> getTrackResults();
@@ -234,5 +236,6 @@ public:
     vector<string> getVisNames(); 
     void reset_each_frame();
     void drawFrameLogs(cv::Mat& image, const vector<std::string>& logs);
+    void cv_debug_FromImgsFolder(const string& imgs_parent_folder);
 
 };

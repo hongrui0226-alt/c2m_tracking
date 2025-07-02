@@ -90,11 +90,9 @@ add_executable(CameraServer
     ${PROTO_HDRS})
 
 if (ENABLE_TESTS)
-    add_executable(tmp_server src/tmp_server.cpp)
-    add_executable(tmp_receive src/tmp_receive.cpp)
-    add_executable(tmp_multi_server src/tmp_multi_server.cpp)
-    add_executable(tmp_visualize_send src/tmp_visualize_send.cpp)
     add_executable(tmp_http src/tmp_http.cpp)
+    add_executable(debug_track src/debug_track.cpp src/tracker.cpp)
+    add_executable(debug_cv src/debug_cv.cpp src/tracker.cpp)
 endif()
 
 target_link_libraries(CameraServer
@@ -116,21 +114,33 @@ target_link_libraries(CameraServer
 )
 
 if (ENABLE_TESTS)
-    target_link_libraries(tmp_server
-        ${OpenCV_LIBS}
-        )
-    target_link_libraries(tmp_receive
-        ${OpenCV_LIBS}
-        )
-    target_link_libraries(tmp_multi_server
-        ${OpenCV_LIBS}
-        )
-    target_link_libraries(tmp_visualize_send
-        ${OpenCV_LIBS}
-        )
     target_link_libraries(tmp_http
         ${OpenCV_LIBS}
         curl
+        )
+    target_link_libraries(debug_track
+        ${OpenCV_LIBS}
+        vpf
+        hbmem
+        gdcbin
+        cjson
+        pthread
+        alog
+        dl
+        spdlog::spdlog
+        gflags
+        )
+    target_link_libraries(debug_cv
+        ${OpenCV_LIBS}
+        vpf
+        hbmem
+        gdcbin
+        cjson
+        pthread
+        alog
+        dl
+        spdlog::spdlog
+        gflags
         )
 endif()
 
