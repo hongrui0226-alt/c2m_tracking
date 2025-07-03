@@ -175,7 +175,7 @@ private:
 public:
     // 构造函数
     Tracker() : 
-        roi_x1(20), roi_y1(20), roi_x2(620), roi_y2(460),
+        roi_x1(20), roi_y1(5), roi_x2(620), roi_y2(475),
         image_w(roi_x2 - roi_x1),
         image_h(roi_y2 - roi_y1),
         scale_x(640.0f / 1920.0f),
