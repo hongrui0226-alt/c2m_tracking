@@ -213,8 +213,6 @@ cv::Mat Tracker::createGridImage(const std::vector<cv::Mat>& images, int rows, i
 
 vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame, bool debug=false) {
     using namespace std::chrono;
-    static const int MIN_CONTOUR_AREA = 100; // 需根据实际定义
-    static const int SOBEL_THRESH = 50;       // 需根据实际定义
 
     // int bianli = front_frame;
     auto start_time = high_resolution_clock::now();
@@ -327,12 +325,20 @@ vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame, bool debug=f
 
         // 面积过滤
         double area = cv::contourArea(contour);
-        if ((area <= MIN_CONTOUR_AREA || area >= 460*450) && (w*h <= 2*area)) {
+        // if ((area <= MIN_CONTOUR_AREA || area >= 460*450) && (w*h <= 2*area)) {
+        //     frame_logs.push_back(
+        //         cv::format("Contour area %f = %dx%d , skipping", area, w, h)
+        //     );
+        //     continue;
+        // }
+
+        if (area <= MIN_CONTOUR_AREA || area >= 460*450) {
             frame_logs.push_back(
                 cv::format("Contour area %f = %dx%d , skipping", area, w, h)
             );
             continue;
         }
+
         // // 边缘检测（Laplacian算子）
         // auto t10 = high_resolution_clock::now();
         // cv::Mat roi_gray = frame_gray(bbox);

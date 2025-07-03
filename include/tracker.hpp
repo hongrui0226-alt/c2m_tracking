@@ -110,16 +110,18 @@ private:
     
     // Track 参数
     TrackXY init_motion = {-15, 0};  // 初始运动向量
-    int dis_threshold = 60;
-    int merge_dis_threshold = 100;
-    int separate_dis_threshold = 100;
-    int vaild_threshold = 500;
-    int head_threshold = 440;
-    int tail_threshold = 85;
-    int vaild_area = 35;
-    int hsv_separation = 150;  // HSV色调分离阈值  TODO：待定
-    int tolerance_undetected_num = 100;
-    int binary_threshold = 20;
+    const int dis_threshold = 60;
+    const int merge_dis_threshold = 100;
+    const int separate_dis_threshold = 100;
+    const int vaild_threshold = 500;
+    const int head_threshold = 440;
+    const int tail_threshold = 85;
+    const int vaild_area = 35;
+    const int hsv_separation = 255;  // HSV色调分离阈值  TODO：待定
+    const int tolerance_undetected_num = 100;
+    const int binary_threshold = 20;
+    const int MIN_CONTOUR_AREA = 26; // 需根据实际定义
+    const int SOBEL_THRESH = 50;       // 需根据实际定义
 
     // Track Flag
     bool detected_flag = false;
