@@ -1247,6 +1247,8 @@ void Tracker::reset() {
     current_frame_xy.clear();
     visualize_images.clear();
     visualize_names.clear();
+    cv_debug_images.clear();
+    cv_debug_names.clear();
     
     tracked_id = 0;
     frame_count = 0;
