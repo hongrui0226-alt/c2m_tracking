@@ -62,7 +62,7 @@ void CameraServer::create_serverloop(int port, httplib::Response& res) {
 
         // 上传数据闭环
         DataLoopInfo info;
-        info.project_id = "231";
+        info.project_id = "42";
         info.sample_id = timestamp.c_str();
         info.operator_name = "discover";
         info.type = "NonSequential";
@@ -122,7 +122,7 @@ void CameraServer::create_serverloop(int port, httplib::Response& res) {
 
         // 上传数据闭环
         DataLoopInfo info;
-        info.project_id = "231";
+        info.project_id = "42";
         info.sample_id = timestamp.c_str();
         info.operator_name = "discover";
         info.type = "NonSequential";
@@ -207,7 +207,7 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
 
                 // 上传数据闭环
                 DataLoopInfo info;
-                info.project_id = "231";
+                info.project_id = "42";
                 info.sample_id = timestamp.c_str();
                 info.operator_name = "discover";
                 info.type = "NonSequential";
@@ -270,7 +270,7 @@ void CameraServer::serverLoop(SocketInfo& socket_info) {
                 // 上传图像数据
                 DataLoopInfo info;
                 timestamp = generateTimestamp(node_index*2);
-                info.project_id = "231";
+                info.project_id = "42";
                 info.sample_id = timestamp.c_str();
                 info.operator_name = "discover";
                 info.type = "NonSequential";

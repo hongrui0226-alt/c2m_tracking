@@ -21,7 +21,7 @@ struct DataLoopInfo {
     string operator_name;
     string type;
     string version;
-    string url = "http://172.25.12.10/dataserver/api/samples/upload_inference";
+    string url = "http://10.1.7.250/dataserver/api/samples/upload_inference";
 };
 
 // Socket Server类
