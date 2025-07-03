@@ -214,17 +214,13 @@ cv::Mat Tracker::createGridImage(const std::vector<cv::Mat>& images, int rows, i
 vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame, bool debug=false) {
     using namespace std::chrono;
     static const int MIN_CONTOUR_AREA = 100; // 需根据实际定义
-    static const int SOBEL_THRESH = 50;       // 需根据实际定义   
+    static const int SOBEL_THRESH = 50;       // 需根据实际定义
 
     // int bianli = front_frame;
     auto start_time = high_resolution_clock::now();
 
     // TrackedData tracked_data;
     vector<TrackedData> res_data;
-    // vector<cv::Mat> tmp_debug_imgs;
-
-    // int current_cpu = sched_getcpu(); // 获取当前CPU核心
-    // std::cout << "当前进程 (PID: " << getpid() << ") 正在 CPU " << current_cpu << " 上运行\n";
 
     std::vector<double> resize_time, roi_time, cvt_color_time, np_abs_time,
         cv2_threshold_time, cv2_erode_time, cv2_dilate_time,
@@ -248,28 +244,44 @@ vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame, bool debug=f
     );
     roi_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t2).count());
 
-    // 3. 灰度转换
-    auto t3 = high_resolution_clock::now();
-    cv::Mat frame_gray;
-    cv::cvtColor(roi_frame, frame_gray, cv::COLOR_BGR2GRAY);
-    cvt_color_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t3).count());
+    // // 3. 灰度转换
+    // auto t3 = high_resolution_clock::now();
+    // cv::Mat frame_gray;
+    // cv::cvtColor(roi_frame, frame_gray, cv::COLOR_BGR2GRAY);
+    // cvt_color_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t3).count());
 
-    // 4. 差异计算
-    auto t4 = high_resolution_clock::now();
-    cv::Mat diff;
-    cv::absdiff(blank_rect_gray, frame_gray, diff);
-    np_abs_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t4).count());
+    // 1. 创建掩码：像素值 < 250 的区域
+    vector<cv::Mat> blank_channels, frame_channels;
+    cv::Mat mask_b, mask_g, mask_r, mask;
+    cv::Mat diff_b, diff_g, diff_r;
 
-    // 5. 阈值处理
-    auto t6 = high_resolution_clock::now();
-    cv::Mat thresh;
-    cv::threshold(diff, thresh, binary_threshold, 255, cv::THRESH_BINARY);
-    cv2_threshold_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t6).count());
+    cv::split(roi_frame, frame_channels);
+    cv::split(blank_rect, blank_channels);
+    cv::absdiff(blank_channels[0], frame_channels[0], diff_b);
+    cv::absdiff(blank_channels[1], frame_channels[1], diff_g);
+    cv::absdiff(blank_channels[2], frame_channels[2], diff_r);
+    cv::threshold(diff_b, mask_b, binary_threshold, 255, cv::THRESH_BINARY);
+    cv::threshold(diff_g, mask_g, binary_threshold, 255, cv::THRESH_BINARY);
+    cv::threshold(diff_r, mask_r, binary_threshold, 255, cv::THRESH_BINARY);
+    cv::bitwise_or(mask_b, mask_g, mask);
+    cv::bitwise_or(mask, mask_r, mask);
+
+    // // 4. 差异计算
+    // auto t4 = high_resolution_clock::now();
+    // cv::Mat diff;
+    // cv::absdiff(blank_rect, frame_gray, diff);
+    // np_abs_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t4).count());
+
+    // // 5. 阈值处理
+    // auto t6 = high_resolution_clock::now();
+    // cv::Mat thresh;
+    // cv::threshold(diff, thresh, binary_threshold, 255, cv::THRESH_BINARY);
+    // cv2_threshold_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t6).count());
 
     // 6. 形态学操作
     auto t7 = high_resolution_clock::now();
     cv::Mat fg_mask, bulred, eroded;
-    GaussianBlur(thresh, bulred, cv::Size(5, 5), 0);
+    GaussianBlur(mask, bulred, cv::Size(5, 5), 0);
     cv::erode(bulred, eroded, kernel, cv::Point(-1, -1), 1);
     cv2_erode_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t7).count());
 
@@ -299,7 +311,7 @@ vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame, bool debug=f
     frame_logs.push_back(cv::format("Found %zu contours", contours.size()));  // add log
 
     if(debug) {
-        vector<cv::Mat> tmp_debug_imgs = {roi_frame, frame_gray, diff, thresh, bulred, eroded, fg_mask};
+        vector<cv::Mat> tmp_debug_imgs = {roi_frame, diff_b, diff_g, diff_r, mask, bulred, eroded, fg_mask};
         cv::Mat debug_img = createGridImage(tmp_debug_imgs, 3, 3);
         cv_debug_images.push_back(debug_img);
         cv_debug_names.push_back(cv::format("%d.jpg", frame_count));
@@ -1338,9 +1350,8 @@ void Tracker::track(const cv::Mat& frame, bool visualize) {
         detected_flag = detect_block(frame, blank_orig);
         
         if (detected_flag) {
-            cv::cvtColor(blank_orig, blank_orig_gray, cv::COLOR_BGR2GRAY);
-            cv::resize(blank_orig_gray, blank_resize_gray, cv::Size(640, 480), cv::INTER_NEAREST);
-            blank_rect_gray = blank_resize_gray(
+            cv::resize(blank_orig, blank_resize, cv::Size(640, 480), cv::INTER_NEAREST);
+            blank_rect = blank_resize(
                 cv::Rect(roi_x1, roi_y1, roi_x2-roi_x1, roi_y2-roi_y1)
             );
 

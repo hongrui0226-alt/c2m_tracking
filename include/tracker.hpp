@@ -112,7 +112,7 @@ private:
     TrackXY init_motion = {-15, 0};  // 初始运动向量
     int dis_threshold = 60;
     int merge_dis_threshold = 100;
-    int separate_dis_threshold = 120;
+    int separate_dis_threshold = 100;
     int vaild_threshold = 500;
     int head_threshold = 440;
     int tail_threshold = 85;
@@ -135,8 +135,8 @@ private:
     std::vector<TrackXY> last_frame_xy, current_frame_xy;
     std::vector<std::string> frame_logs;
     std::unordered_map<int, ImageData> img2save;
-    cv::Mat blank_orig, blank_orig_gray;
-    cv::Mat blank_resize_gray, blank_rect_gray;
+    cv::Mat blank_orig;
+    cv::Mat blank_resize, blank_rect;
     cv::Mat blank_frame_tail_area, blank_frame_head_area;
     int total_frame;
     int tracked_id = 0;
@@ -173,7 +173,7 @@ private:
 public:
     // 构造函数
     Tracker() : 
-        roi_x1(20), roi_y1(5), roi_x2(620), roi_y2(475),
+        roi_x1(20), roi_y1(20), roi_x2(620), roi_y2(460),
         image_w(roi_x2 - roi_x1),
         image_h(roi_y2 - roi_y1),
         scale_x(640.0f / 1920.0f),
