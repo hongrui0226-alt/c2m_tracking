@@ -616,7 +616,7 @@ void Tracker::tracking_group(const cv::Mat& frame,
                 img2save[info.id].images.push_back(std::move(info.current_canvas));
                 img2save[info.id].names.push_back(
                     cv::format("%d_(%d,%d)_area(%.1f)_state(%d).png", 
-                            frame_count+1, info.xy[0], info.xy[1], info.areas, info.state)
+                            frame_count, info.xy[0], info.xy[1], info.areas, info.state)
                 );
 
                 frame_logs.push_back(
@@ -632,7 +632,12 @@ void Tracker::tracking_group(const cv::Mat& frame,
             last_frame_xy.clear();
             last_frame_info.clear();
             for (const auto& info : current_frame_info) {
-                if (info.state == -1) continue;  // 过滤未初始化的运动向量
+                if (info.state == -1) {
+                    frame_logs.push_back(
+                        cv::format("Uninit: (%d,%d)", info.xy[0], info.xy[1])
+                    );
+                    continue;  // 过滤未初始化的运动向量
+                }
                 TrackXY pred_xy = {
                     info.xy[0] + info.motion[0],
                     info.xy[1] + info.motion[1]
@@ -677,7 +682,7 @@ void Tracker::tracking_group(const cv::Mat& frame,
                     lock_guard<mutex> lock(mtx);
                     visualize_images.push_back(visualized_frame);
                     visualize_names.push_back(
-                        cv::format("frame_%d.jpg", frame_count+1)
+                        cv::format("frame_%d.jpg", frame_count)
                     );
                 }
                 
@@ -720,7 +725,7 @@ void Tracker::tracking_group(const cv::Mat& frame,
         img2save[id].images.push_back(current_canvas);
         img2save[id].names.push_back(
             cv::format("%d_(%d,%d)_area(%.1f)_state(%d).png", 
-                    frame_count+1, xy[0], xy[1], areas, state)
+                    frame_count, xy[0], xy[1], areas, state)
         );
     }
 
@@ -775,7 +780,7 @@ void Tracker::tracking_group(const cv::Mat& frame,
             img2save[id].images.push_back(current_canvas);
             img2save[id].names.push_back(
                 cv::format("%d_(%d,%d)_area(%.1f)_state(%d).png", 
-                        frame_count+1, xy[0], xy[1], areas, state)
+                        frame_count, xy[0], xy[1], areas, state)
             );
         }  // sec_unmatched_a  和  unmatched_a 命名不一致的问题
 
@@ -929,7 +934,7 @@ void Tracker::tracking_group(const cv::Mat& frame,
         img2save[current_frame_info[idx].id].images.push_back(current_frame_info[idx].current_canvas);
         img2save[current_frame_info[idx].id].names.push_back(
             cv::format("%d_(%d,%d)_area(%.1f)_state(%d).png", 
-                    frame_count+1, xy[0], xy[1], 
+                    frame_count, xy[0], xy[1], 
                     current_frame_info[idx].areas, 
                     current_frame_info[idx].state)
         );
@@ -939,7 +944,12 @@ void Tracker::tracking_group(const cv::Mat& frame,
     last_frame_xy.clear();
     last_frame_info.clear();
     for (const auto& info : current_frame_info) {
-        if (info.state == -1) continue;  // 过滤未初始化的运动向量
+        if (info.state == -1) {
+            frame_logs.push_back(
+                cv::format("Uninit: (%d,%d)", info.xy[0], info.xy[1])
+            );
+            continue;  // 过滤未初始化的运动向量
+        }
         TrackXY pred_xy = {
             info.xy[0] + info.motion[0],
             info.xy[1] + info.motion[1]
@@ -981,7 +991,7 @@ void Tracker::tracking_group(const cv::Mat& frame,
             lock_guard<mutex> lock(mtx);
             visualize_images.push_back(visualized_frame);
             visualize_names.push_back(
-                cv::format("frame_%d.jpg", frame_count+1)
+                cv::format("frame_%d.jpg", frame_count)
             );
         }
             
@@ -1266,7 +1276,7 @@ void Tracker::reset() {
     track_over_flag = false;
     first_frame_flag = true;
     undetected_frame_count = 0;
-    invaild_num = 5;
+    invaild_num = 30;
     
     img2save.clear();
     last_frame_xy.clear();
@@ -1375,10 +1385,10 @@ void Tracker::track(const cv::Mat& frame, bool visualize) {
             tracking_group(frame, cv_res, visualize);
             cout << "检测到有效帧" << endl;
         }
-        else {
-            blank_orig = frame;
-            // cout << "未检测到有效帧" << endl;
-        }
+        // else {
+        //     blank_orig = frame;
+        //     // cout << "未检测到有效帧" << endl;
+        // }
             
     }
     

@@ -106,7 +106,7 @@ private:
     int roix1_orig, roiy1_orig, roix2_orig, roiy2_orig;
     int width_orig, length_orig;
     int right_width;
-    float check_length = 40.0f;
+    float check_length = 80.0f;
     
     // Track 参数
     TrackXY init_motion = {-30, 0};  // 初始运动向量
@@ -127,7 +127,7 @@ private:
     bool detected_flag = false;
     bool track_over_flag = false;
     bool first_frame_flag = true;
-    int invaild_num = 5;
+    int invaild_num = 30;
     int undetected_frame_count = 0;
 
     // Track 数据
