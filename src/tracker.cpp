@@ -637,7 +637,12 @@ void Tracker::tracking_group(const cv::Mat& frame,
                     info.xy[0] + info.motion[0],
                     info.xy[1] + info.motion[1]
                 };
-                if (pred_xy[0] <= tail_threshold) continue;
+                if (pred_xy[0] <= tail_threshold) {
+                    frame_logs.push_back(
+                        cv::format("Over: %d is over", info.id)
+                    );
+                    continue;
+                }
                 last_frame_xy.push_back(pred_xy);
                 last_frame_info.push_back(info);
             }
@@ -939,7 +944,12 @@ void Tracker::tracking_group(const cv::Mat& frame,
             info.xy[0] + info.motion[0],
             info.xy[1] + info.motion[1]
         };
-        if (pred_xy[0] <= tail_threshold) continue;
+        if (pred_xy[0] <= tail_threshold) {
+            frame_logs.push_back(
+                cv::format("Over: %d is over", info.id)
+            );
+            continue;
+        }
         last_frame_xy.push_back(pred_xy);
         last_frame_info.push_back(info);
     }

@@ -109,7 +109,7 @@ private:
     float check_length = 40.0f;
     
     // Track 参数
-    TrackXY init_motion = {-15, 0};  // 初始运动向量
+    TrackXY init_motion = {-30, 0};  // 初始运动向量
     const int dis_threshold = 60;
     const int merge_dis_threshold = 100;
     const int separate_dis_threshold = 100;
@@ -120,7 +120,7 @@ private:
     const int hsv_separation = 255;  // HSV色调分离阈值  TODO：待定
     const int tolerance_undetected_num = 100;
     const int binary_threshold = 20;
-    const int MIN_CONTOUR_AREA = 26; // 需根据实际定义
+    const int MIN_CONTOUR_AREA = 80; // 需根据实际定义
     const int SOBEL_THRESH = 50;       // 需根据实际定义
 
     // Track Flag
