@@ -95,30 +95,44 @@ bool Tracker::detect_block(const cv::Mat& frame, const cv::Mat& blank_frame) {
         cv::Rect(width_orig - right_width, 0, right_width, length_orig)
     );
 
-    // 背景减除器+开运算
-    cv::Mat gray_check, gray_ref, diff, fg_mask, thresh;
+    // // 背景减除器+开运算
+    // cv::Mat gray_check, gray_ref, diff, fg_mask, thresh;
     
     // 转换为灰度图
-    cv::cvtColor(check_frame, gray_check, cv::COLOR_BGR2GRAY);
-    cv::cvtColor(check_blank_frame, gray_ref, cv::COLOR_BGR2GRAY);
+    // cv::cvtColor(check_frame, gray_check, cv::COLOR_BGR2GRAY);
+    // cv::cvtColor(check_blank_frame, gray_ref, cv::COLOR_BGR2GRAY);
+    vector<cv::Mat> blank_channels, frame_channels;
+    cv::Mat mask_b, mask_g, mask_r, mask;
+    cv::Mat diff_b, diff_g, diff_r;
+
+    cv::split(check_frame, frame_channels);
+    cv::split(check_blank_frame, blank_channels);
+    cv::absdiff(blank_channels[0], frame_channels[0], diff_b);
+    cv::absdiff(blank_channels[1], frame_channels[1], diff_g);
+    cv::absdiff(blank_channels[2], frame_channels[2], diff_r);
+    cv::threshold(diff_b, mask_b, binary_threshold, 255, cv::THRESH_BINARY);
+    cv::threshold(diff_g, mask_g, binary_threshold, 255, cv::THRESH_BINARY);
+    cv::threshold(diff_r, mask_r, binary_threshold, 255, cv::THRESH_BINARY);
+    cv::bitwise_or(mask_b, mask_g, mask);
+    cv::bitwise_or(mask, mask_r, mask);
     
-    // 使用OpenCV subtract并计算绝对值
-    cv::subtract(gray_check, gray_ref, diff, cv::noArray(), CV_8S); // 有符号8位
-    cv::convertScaleAbs(diff, diff); // 计算绝对值并转为CV_8U
+    // // 使用OpenCV subtract并计算绝对值
+    // cv::subtract(gray_check, gray_ref, diff, cv::noArray(), CV_8S); // 有符号8位
+    // cv::convertScaleAbs(diff, diff); // 计算绝对值并转为CV_8U
     
-    // 阈值处理
-    cv::threshold(diff, thresh, binary_threshold, 255, cv::THRESH_BINARY);
+    // // 阈值处理
+    // cv::threshold(diff, thresh, binary_threshold, 255, cv::THRESH_BINARY);
     
     // 形态学操作（开运算：先腐蚀后膨胀）
     cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
-    cv::erode(thresh, fg_mask, kernel, cv::Point(-1, -1), 2);
-    cv::dilate(fg_mask, fg_mask, kernel, cv::Point(-1, -1), 1);
+    cv::erode(mask, mask, kernel, cv::Point(-1, -1), 2);
+    cv::dilate(mask, mask, kernel, cv::Point(-1, -1), 1);
     
     // 计算非零像素数量
-    int pixel_count = cv::countNonZero(fg_mask);
+    int pixel_count = cv::countNonZero(mask);
     
     // 阈值判断
-    int min_pixel_threshold = 400;
+    int min_pixel_threshold = 200;
     return pixel_count > min_pixel_threshold;
 }
 
@@ -581,14 +595,15 @@ Tracker::occlusion_spilt(const vector<string>& name_list, bool color_similar = t
 void Tracker::tracking_group(const cv::Mat& frame, 
                             vector<TrackedData>& tracked_datavec, 
                             bool visualize=true) {
-    frame_count++;
-    current_frame_info.clear();
-    current_frame_xy.clear();
-
     // 当前帧没有数据
     if (tracked_datavec.empty()) {
         return;
     }
+
+    frame_count++;
+    current_frame_info.clear();
+    current_frame_xy.clear();
+    
     //  && !is_all_white(tracked_data.image)
     for (auto& tracked_data : tracked_datavec) {
         if (tracked_data.cx < vaild_threshold && 

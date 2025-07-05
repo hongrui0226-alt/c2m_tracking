@@ -129,6 +129,10 @@ public:
         return camera.frame_queue_.size();
     }
 
+    void clearFrameQueue(MIPICAM& camera) {
+        camera.frame_queue_.clear();
+    }
+
     void startCapturing(MIPICAM& camera) {
         if (camera.startCapture() != 0) {
             cerr << "Failed to start capture" << endl;
