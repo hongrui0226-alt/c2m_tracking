@@ -5,7 +5,6 @@ DEFINE_string(process_folder, "/home/sunrise/qimeng/dataset/videos", "Process fo
 // 服务器主循环
 void CameraServer::create_serverloop(int port, httplib::Response& res) {
 
-    vector<uchar> serializedData;
     vector<struct timeval> timevals;
     string timestamp;
 

@@ -445,6 +445,10 @@ bool Tracker::is_all_white(const cv::Mat& img) {
 }
 
 MatchResult Tracker::match_points(const std::vector<TrackXY>& set_A, const std::vector<TrackXY>& set_B) {
+    // 生成未匹配的点集
+    std::vector<size_t> unmatched_a;
+    std::vector<size_t> unmatched_b;
+
     const size_t size_A = set_A.size();
     const size_t size_B = set_B.size();
     
@@ -495,21 +499,8 @@ MatchResult Tracker::match_points(const std::vector<TrackXY>& set_A, const std::
         }
         else {
             final_matches.push_back({match.a_idx, -1, match.b_idx, match.distance});
-        }
-    }
-    
-    // 生成未匹配的点集
-    std::vector<size_t> unmatched_a;
-    std::vector<size_t> unmatched_b;
-    
-    // 未匹配的A点
-    std::unordered_set<size_t> matched_a_indices;
-    for (const auto& match : final_matches) {
-        matched_a_indices.insert(match.a_idx);
-    }
-    for (int a_idx = 0; a_idx < size_A; ++a_idx) {
-        if (matched_a_indices.find(a_idx) == matched_a_indices.end()) {
-            unmatched_a.push_back(a_idx);
+            // Add 未匹配的A点
+            unmatched_a.push_back(match.a_idx);
         }
     }
     
@@ -519,6 +510,11 @@ MatchResult Tracker::match_points(const std::vector<TrackXY>& set_A, const std::
             unmatched_b.push_back(b_idx);
         }
     }
+
+    sort(final_matches.begin(), final_matches.end(), 
+          [](const Match& m1, const Match& m2) {
+              return m1.a_idx < m2.a_idx;  // 升序排序
+          });
     
     return {final_matches, unmatched_a, unmatched_b};
 }
