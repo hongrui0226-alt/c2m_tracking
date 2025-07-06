@@ -928,7 +928,7 @@ void Tracker::tracking_group(const cv::Mat& frame,
                 continue;
             }
 
-            TrackXY motion = {static_cast<int>((vaild_threshold - xy[0]) * 0.1), 0};
+            TrackXY motion = {static_cast<int>(-(vaild_threshold - xy[0]) * 0.1), 0};
             current_frame_info[idx].motion = motion;
             current_frame_info[idx].id = current_frame_info[min_idx].id;
             current_frame_info[idx].state = 2;
