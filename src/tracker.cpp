@@ -530,8 +530,8 @@ Tracker::occlusion_spilt(const vector<string>& name_list, bool color_similar = t
     }
     
     // 计算关键帧索引
-    int last_merged;
-    int first_separated;
+    int last_merged=0;
+    int first_separated=10000;
     int merged_index;
     int separated_index; 
     

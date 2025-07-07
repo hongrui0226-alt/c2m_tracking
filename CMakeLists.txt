@@ -93,6 +93,7 @@ if (ENABLE_TESTS)
     add_executable(tmp_http src/tmp_http.cpp)
     add_executable(debug_track src/debug_track.cpp src/tracker.cpp)
     add_executable(debug_cv src/debug_cv.cpp src/tracker.cpp)
+    add_executable(debug_occlusion src/debug_occlusion.cpp)
 endif()
 
 target_link_libraries(CameraServer
