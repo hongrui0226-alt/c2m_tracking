@@ -143,5 +143,8 @@ if (ENABLE_TESTS)
         spdlog::spdlog
         gflags
         )
+    target_link_libraries(debug_occlusion
+        gflags
+        )
 endif()
 

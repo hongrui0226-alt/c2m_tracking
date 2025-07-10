@@ -19,6 +19,68 @@ bool endsWith(const std::string& str, const std::string& suffix) {
     ) == 0;
 }
 
+std::vector<int> findLongestConsSeg(const std::vector<int>& a) {
+    if (a.empty()) return {};
+    
+    int max_start = 0;      // 最长连续段的起始位置
+    int max_length = 1;     // 最长连续段的长度
+    int current_start = 0;  // 当前连续段的起始位置
+    
+    for (int i = 1; i < a.size(); ++i) {
+        // 检查是否连续
+        if (a[i] != a[i-1] + 1) {
+            // 发现不连续点，检查当前段是否是最长
+            int current_length = i - current_start;
+            if (current_length > max_length) {
+                max_length = current_length;
+                max_start = current_start;
+            }
+            current_start = i;  // 开始新的连续段
+        }
+    }
+    
+    // 检查最后一个连续段
+    int final_length = static_cast<int>(a.size()) - current_start;
+    if (final_length > max_length) {
+        max_length = final_length;
+        max_start = current_start;
+    }
+    
+    // 创建结果向量（使用迭代器范围构造）
+    return std::vector<int>(a.begin() + max_start, 
+                           a.begin() + max_start + max_length);
+}
+
+TrackXY extractCoordinates(std::string_view filename) {
+    // 定位关键字符位置
+    auto start = filename.find("_(");
+    if (start == std::string_view::npos) 
+        return {0, 0};
+    start += 2;  // 跳过 "_("
+    
+    auto comma = filename.find(',', start);
+    if (comma == std::string_view::npos || comma == start)
+        return {0, 0};
+    
+    auto end = filename.find(')', comma);
+    if (end == std::string_view::npos || end == comma + 1)
+        return {0, 0};
+
+    // 提取数字部分
+    std::string_view x_str = filename.substr(start, comma - start);
+    std::string_view y_str = filename.substr(comma + 1, end - comma - 1);
+
+    // 高效转换整数
+    TrackXY result;
+    if (std::from_chars(x_str.data(), x_str.data() + x_str.size(), result[0]).ec != std::errc{})
+        return {0, 0};
+    if (std::from_chars(y_str.data(), y_str.data() + y_str.size(), result[1]).ec != std::errc{})
+        return {0, 0};
+
+    return result;
+}
+
+
 // 解析文件名信息
 FileInfo parse_file_info(const string& name) {
     static const regex frame_pattern(R"(^(\d+)_)");
@@ -31,6 +93,7 @@ FileInfo parse_file_info(const string& name) {
     
     info.is_merged = endsWith(name, "_m.png");
     info.is_separated = name.find("state(2)") != string::npos;
+    info.xy = extractCoordinates(name);
     
     return info;
 }
@@ -523,68 +586,169 @@ tuple<vector<string>, vector<string>, vector<string>>
 Tracker::occlusion_spilt(const vector<string>& name_list, bool color_similar = true) {
     // 解析所有文件信息
     vector<FileInfo> parsed_files;
+    vector<int> ids_vec;
+    unordered_map<int, size_t> ids_counts;
+    unordered_map<int, vector<FileInfo>> multi_occlu_files;
+    vector<int> frame_ids, cons_frame_ids;
+    vector<string> a, b, c;
+    int max_num = 0;
     parsed_files.reserve(name_list.size());
     
     for (const auto& name : name_list) {
-        parsed_files.push_back(parse_file_info(name));
-    }
-    
-    // 计算关键帧索引
-    int last_merged=0;
-    int first_separated=10000;
-    int merged_index;
-    int separated_index; 
-    
-    // 分类文件
-    vector<string> merged_list, separated_list;
-    vector<string> before_merged_list, after_separated_list, merging_list;
-    vector<FileInfo> temp_list;
-    
-    for (const auto& file : parsed_files) {
-        if (file.is_merged) {
-            merged_list.push_back(file.name);
-            merged_index = file.frame_id;
-            last_merged = merged_index > last_merged ? merged_index : last_merged;
-        } else if (file.is_separated) {
-            separated_list.push_back(file.name);
-            separated_index = file.frame_id;
-            first_separated = separated_index < first_separated ? separated_index : first_separated;
-        } else {
-            temp_list.push_back(file);
-        }
-    }
-    
-    for  (const auto& file : temp_list) { 
-        if (file.frame_id <= last_merged) {
-            before_merged_list.push_back(file.name);
-        }
-        else if (file.frame_id >= first_separated) {
-            after_separated_list.push_back(file.name);
-        }
-        else {
-            merging_list.push_back(file.name);
-        }
+        FileInfo info = parse_file_info(name);
+        parsed_files.push_back(info);
+        ids_vec.push_back(info.frame_id);
+        ids_counts[info.frame_id]++;
+        max_num = ids_counts[info.frame_id]>max_num ? ids_counts[info.frame_id] : max_num;
     }
 
-    // 返回结果
-    if (color_similar) {
-        const size_t merged_size = merged_list.size() + before_merged_list.size();
-        const size_t separated_size = separated_list.size() + after_separated_list.size();
+    // 三遮挡及以上
+    if (max_num > 2) {  
+        vector<vector<FileInfo>> result_files(max_num);
+        vector<vector<int>> results;
+        vector<int> tmp_results;
+        for (int m=0; m < max_num; m++) {
+            tmp_results.push_back(m);
+        }
+        results.push_back({0,0,0,0});
+
+        // 获取帧内目标最多的帧id
+        for (const auto& [frame_id, num] : ids_counts) {
+            if (num == max_num) {
+                frame_ids.push_back(frame_id);
+            }
+        }
+        // 找到最大连续帧
+        sort(frame_ids.begin(), frame_ids.end());
+        cons_frame_ids = findLongestConsSeg(frame_ids);
+
+        for (const auto& info : parsed_files) {
+            if (find(cons_frame_ids.begin(), cons_frame_ids.end(), info.frame_id) != cons_frame_ids.end()) {
+                multi_occlu_files[info.frame_id].push_back(info);
+            }
+        }
         
-        return merged_size > separated_size
-            ? make_tuple(merged_list, before_merged_list, merging_list)
-            : make_tuple(separated_list, after_separated_list, merging_list);
-    } else {
-        vector<string> combined;
-        combined.reserve(merged_list.size() + before_merged_list.size() + 
-                         separated_list.size() + after_separated_list.size());
+        for (int i=0; i < (cons_frame_ids.size()-1); i++) {
+            int id = cons_frame_ids[i];
+            // Match
+            vector<TrackXY> tmp_xy_1, xy_1, xy_2;
+            for (const auto& info : multi_occlu_files[id]) {
+                tmp_xy_1.push_back(info.xy);
+            }
+            for (const auto& index : tmp_results) {
+                xy_1.push_back(tmp_xy_1[index]);
+            }
+            tmp_results.clear();
+            for (const auto& info : multi_occlu_files[id+1]) {
+                xy_2.push_back(info.xy);
+            }
+            auto [matches, unmatched_a, unmatched_b] = match_points(xy_1, xy_2);
+            for (const auto& match : matches) {
+                tmp_results.push_back(match.b_idx);
+            }
+            // 对未匹配到的积木二次匹配
+            std::vector<TrackXY> unmatched_last_xy, unmatched_current_xy;
+            std::vector<size_t> tmp_unmatched_a, tmp_unmatched_b;
+            for (size_t i = 0; i < unmatched_a.size(); ++i) { 
+                unmatched_last_xy.push_back(xy_1[unmatched_a[i]]);
+            }
+            for (size_t i = 0; i < unmatched_b.size(); ++i) { 
+                unmatched_current_xy.push_back(xy_2[unmatched_b[i]]);
+            }
+            // Secondly Match
+            auto [sec_matches, sec_unmatched_a, sec_unmatched_b] = match_points(unmatched_last_xy, unmatched_current_xy);
+            for (const auto& match : sec_matches) {
+                // tmp_results.push_back(match.b_idx);
+                tmp_results[unmatched_a[match.a_idx]] = unmatched_b[match.b_idx];
+            }
+
+            results.push_back(tmp_results);
+        }
+
+        // 默认的：max_num 等于 result_files.size() 、cons_frame_ids.size() 等于 multi_occlu_files 的size
+        size_t vaild_frame_num = cons_frame_ids.size();
+        for (int i=0; i < max_num; i++) {
+            for (int j=0; j < vaild_frame_num; j++) {
+                cout << "results[j][i]: " << results[j][i] << endl;
+                result_files[i].push_back(multi_occlu_files[cons_frame_ids[j]][results[j][i]]);
+            }
+        }
+
+        for (const auto& single_group : result_files) {
+            for (const auto& single_file : single_group) {
+                a.push_back(single_file.name);
+            }
+            a.push_back("xxxxx");
+        }
+
+        for (const auto& name : a) {
+            cout << "name: " << name << endl;
+        }
+
+        c.push_back("MultiOcclusionSpilt");
         
-        combined.insert(combined.end(), merged_list.begin(), merged_list.end());
-        combined.insert(combined.end(), before_merged_list.begin(), before_merged_list.end());
-        combined.insert(combined.end(), separated_list.begin(), separated_list.end());
-        combined.insert(combined.end(), after_separated_list.begin(), after_separated_list.end());
+        return make_tuple(a, b, c);
+    } 
+    // 二遮挡
+    else { 
+        int last_merged=0;
+        int first_separated=100000;
+        int merged_index;
+        int separated_index; 
+        cout << "last_merged: " << last_merged << endl;
+        cout << "first_separated: " << first_separated << endl;
         
-        return make_tuple(combined, merging_list, vector<string>{});
+        // 分类文件
+        vector<string> merged_list, separated_list;
+        vector<string> before_merged_list, after_separated_list, merging_list;
+        vector<FileInfo> temp_list;
+        
+        for (const auto& file : parsed_files) {
+            if (file.is_merged) {
+                merged_list.push_back(file.name);
+                merged_index = file.frame_id;
+                last_merged = merged_index > last_merged ? merged_index : last_merged;
+            } else if (file.is_separated) {
+                separated_list.push_back(file.name);
+                separated_index = file.frame_id;
+                first_separated = separated_index < first_separated ? separated_index : first_separated;
+            } else {
+                temp_list.push_back(file);
+            }
+        }
+        
+        for (const auto& file : temp_list) { 
+            if (file.frame_id <= last_merged) {
+                before_merged_list.push_back(file.name);
+            }
+            else if (file.frame_id >= first_separated) {
+                after_separated_list.push_back(file.name);
+            }
+            else {
+                merging_list.push_back(file.name);
+            }
+        }
+
+        // 返回结果
+        if (color_similar) {
+            const size_t merged_size = merged_list.size() + before_merged_list.size();
+            const size_t separated_size = separated_list.size() + after_separated_list.size();
+            
+            return merged_size > separated_size
+                ? make_tuple(merged_list, before_merged_list, merging_list)
+                : make_tuple(separated_list, after_separated_list, merging_list);
+        } else {
+            vector<string> combined;
+            combined.reserve(merged_list.size() + before_merged_list.size() + 
+                            separated_list.size() + after_separated_list.size());
+            
+            combined.insert(combined.end(), merged_list.begin(), merged_list.end());
+            combined.insert(combined.end(), before_merged_list.begin(), before_merged_list.end());
+            combined.insert(combined.end(), separated_list.begin(), separated_list.end());
+            combined.insert(combined.end(), after_separated_list.begin(), after_separated_list.end());
+            
+            return make_tuple(combined, merging_list, vector<string>{});
+        }
     }
 }
 
@@ -1062,24 +1226,41 @@ void Tracker::save_results(bool save_error=true) {
             // 如果色调差异小于阈值，则进行轨迹切割，反之则进行颜色聚类
             auto [min, max] = minmax_element(hsv_means.begin(), hsv_means.end());
             if ((*max - *min) < hsv_separation) {
+                
                 auto [obj1_list, obj2_list, merging_list] = occlusion_spilt(data.names, true);
-                for (const auto& name : obj1_list) {
-                    auto pos = std::find(data.names.begin(), data.names.end(), name);
-                    cv::imwrite((fs::path(result_dir) / ("c_" + std::to_string(id) + "_0") / name).string(), 
-                                data.images[pos - data.names.begin()]);
-                }
-                for (const auto& name : obj2_list) {
-                    auto pos = std::find(data.names.begin(), data.names.end(), name);
-                    cv::imwrite((fs::path(result_dir) / ("c_" + std::to_string(id) + "_1") / name).string(), 
-                                data.images[pos - data.names.begin()]);
-                }
-
-                if (save_error) {
-                    fs::create_directories(fs::path(result_dir) / ("e_" + std::to_string(id)));
-                    for (const auto& name : merging_list) {
+                
+                if (merging_list[0] == "MultiOcclusionSpilt") {   // 发生多遮挡
+                    int index = 0;
+                    for (const auto& name : obj1_list) {
+                        if (name == "xxxxx") {
+                            index++;  // 不同类别分割
+                            continue;
+                        }
                         auto pos = std::find(data.names.begin(), data.names.end(), name);
-                        cv::imwrite((fs::path(result_dir) / ("e_" + std::to_string(id)) / name).string(), 
+                        // string id_str = "c_" + std::to_string(id) + cv::format("_%d", index);
+                        string folder_index = "c_" + std::to_string(id) + cv::format("_%d", index);
+                        cv::imwrite((fs::path(result_dir) / folder_index / name).string(), 
                                     data.images[pos - data.names.begin()]);
+                    }
+                } else {   // 发生二遮挡
+                    for (const auto& name : obj1_list) {
+                        auto pos = std::find(data.names.begin(), data.names.end(), name);
+                        cv::imwrite((fs::path(result_dir) / ("c_" + std::to_string(id) + "_0") / name).string(), 
+                                    data.images[pos - data.names.begin()]);
+                    }
+                    for (const auto& name : obj2_list) {
+                        auto pos = std::find(data.names.begin(), data.names.end(), name);
+                        cv::imwrite((fs::path(result_dir) / ("c_" + std::to_string(id) + "_1") / name).string(), 
+                                    data.images[pos - data.names.begin()]);
+                    }
+    
+                    if (save_error) {
+                        fs::create_directories(fs::path(result_dir) / ("e_" + std::to_string(id)));
+                        for (const auto& name : merging_list) {
+                            auto pos = std::find(data.names.begin(), data.names.end(), name);
+                            cv::imwrite((fs::path(result_dir) / ("e_" + std::to_string(id)) / name).string(), 
+                                        data.images[pos - data.names.begin()]);
+                        }
                     }
                 }
             }
@@ -1164,8 +1345,6 @@ void Tracker::post_process() {
 
         // 判断这组积木存在遮挡
         if (target_length < real_length) {
-            int id_1 = tracked_id++;
-            int id_2 = tracked_id++;
 
             vector<double> hsv_means;
             for (const auto& img : data.images) {
@@ -1203,17 +1382,32 @@ void Tracker::post_process() {
                 cout << "obj1_list size: " << obj1_list.size() << endl;
                 cout << "obj2_list size: " << obj2_list.size() << endl;
                 cout << "merging_list size: " << merging_list.size() << endl;
-                for (const auto& name : obj1_list) {
-                    auto pos = std::find(data.names.begin(), data.names.end(), name);
-                    img2save[id_1].images.push_back(data.images[pos - data.names.begin()].clone());
-                    img2save[id_1].names.push_back(name);
+                if (merging_list[0] == "MultiOcclusionSpilt") {   // 发生多遮挡
+                    cout << "MultiOcclusionSpilt" << endl;
+                    int obj_id = tracked_id++;
+                    for (const auto& name : obj1_list) {
+                        if (name == "xxxxx") {
+                            obj_id = tracked_id++;  // 不同类别分割
+                            continue;
+                        }
+                        auto pos = std::find(data.names.begin(), data.names.end(), name);
+                        img2save[obj_id].images.push_back(data.images[pos - data.names.begin()].clone());
+                        img2save[obj_id].names.push_back(name);
+                    }
+                } else {  // 发生二遮挡
+                    int id_1 = tracked_id++;
+                    for (const auto& name : obj1_list) {
+                        auto pos = std::find(data.names.begin(), data.names.end(), name);
+                        img2save[id_1].images.push_back(data.images[pos - data.names.begin()].clone());
+                        img2save[id_1].names.push_back(name);
+                    }
+                    int id_2 = tracked_id++;
+                    for (const auto& name : obj2_list) {
+                        auto pos = std::find(data.names.begin(), data.names.end(), name);
+                        img2save[id_2].images.push_back(data.images[pos - data.names.begin()].clone());
+                        img2save[id_2].names.push_back(name);
+                    }
                 }
-                for (const auto& name : obj2_list) {
-                    auto pos = std::find(data.names.begin(), data.names.end(), name);
-                    img2save[id_2].images.push_back(data.images[pos - data.names.begin()].clone());
-                    img2save[id_2].names.push_back(name);
-                }
-
             }
             else {
                 auto [combinded, merging_list, other] = occlusion_spilt(data.names, false);
@@ -1237,11 +1431,13 @@ void Tracker::post_process() {
                             obj2_list.push_back(combinded[j]);
                     }
                 }
+                int id_1 = tracked_id++;
                 for (const auto& name : obj1_list) {
                     auto pos = std::find(data.names.begin(), data.names.end(), name);
                     img2save[id_1].images.push_back(data.images[pos - data.names.begin()].clone());
                     img2save[id_1].names.push_back(name);
                 }
+                int id_2 = tracked_id++;
                 for (const auto& name : obj2_list) {
                     auto pos = std::find(data.names.begin(), data.names.end(), name);
                     img2save[id_2].images.push_back(data.images[pos - data.names.begin()].clone());

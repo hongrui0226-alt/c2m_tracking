@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
+#include <charconv>
 
 using namespace std;
 
@@ -57,6 +58,7 @@ struct FileInfo {
     int frame_id;
     bool is_merged = false;
     bool is_separated = false;
+    TrackXY xy;
 };
 
 bool endsWith(const std::string& str, const std::string& suffix);
