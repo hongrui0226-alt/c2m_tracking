@@ -683,7 +683,7 @@ Tracker::occlusion_spilt(const vector<string>& name_list, bool color_similar = t
         }
 
         for (const auto& name : a) {
-            cout << "name: " << name << endl;
+            cout << "MultiOcclusionSpilt Name: " << name << endl;
         }
 
         c.push_back("MultiOcclusionSpilt");
