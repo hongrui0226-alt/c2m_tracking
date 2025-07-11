@@ -696,8 +696,6 @@ Tracker::occlusion_spilt(const vector<string>& name_list, bool color_similar = t
         int first_separated=100000;
         int merged_index;
         int separated_index; 
-        cout << "last_merged: " << last_merged << endl;
-        cout << "first_separated: " << first_separated << endl;
         
         // 分类文件
         vector<string> merged_list, separated_list;
@@ -740,7 +738,9 @@ Tracker::occlusion_spilt(const vector<string>& name_list, bool color_similar = t
                     } else if (tmp_match == suffix_match_2) {
                         obj2_list.push_back(info.name);
                     } else {
-                        cout << "Match Error !" << endl;
+                        cout << "Match Error ! tmp_match: " << tmp_match << endl;
+                        cout << "suffix_match_1: " << suffix_match_1 << endl;
+                        cout << "suffix_match_2: " << suffix_match_2 << endl;
                     }
                 }
             }
@@ -1152,7 +1152,7 @@ void Tracker::tracking_group(const cv::Mat& frame,
                 continue;
             }
 
-            TrackXY motion = {static_cast<int>(-(vaild_threshold - xy[0]) * 0.1), 0};
+            TrackXY motion = {static_cast<int>(-(vaild_threshold - xy[0]) * 0.05 - 20), 0};
             current_frame_info[idx].motion = motion;
             current_frame_info[idx].id = current_frame_info[min_idx].id;
 
@@ -1209,15 +1209,23 @@ void Tracker::tracking_group(const cv::Mat& frame,
         for (const auto& info : current_frame_info) {
             cv::Point origin_xy(info.xy[0] + roi_x1 - 10, 
                             info.xy[1] + roi_y1 + 5);
+            cv::Point posPut_xy(info.xy[0] + roi_x1 - 35, 
+                            info.xy[1] + roi_y1 + 25);
             
             if (info.state == -1) {  // 未追踪到
                 putText(visualized_frame, "x", origin_xy, 
                         visualize_config.font, visualize_config.font_scale,
                         visualize_config.color_untracked, visualize_config.thickness);
+                putText(visualized_frame, cv::format("(%d, %d)", info.xy[0], info.xy[1]), posPut_xy, 
+                        visualize_config.font, 0.5,
+                        visualize_config.color_untracked, visualize_config.thickness);
             } else {  // 已追踪到
                 putText(visualized_frame, to_string(info.id), origin_xy, 
                         visualize_config.font, visualize_config.font_scale,
                         visualize_config.color_tracked, visualize_config.thickness);
+                putText(visualized_frame, cv::format("(%d, %d)", info.xy[0], info.xy[1]), posPut_xy, 
+                        visualize_config.font, 0.5,
+                        visualize_config.color_untracked, visualize_config.thickness);
             }
         }
 

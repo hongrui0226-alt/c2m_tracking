@@ -196,11 +196,11 @@ public:
         // std::cout << "right_width (after cast): " << right_width << std::endl;
         
         // 初始化可视化配置
-        visualize_config.color_tracked = cv::Scalar(0, 255, 0);    // 绿色
+        visualize_config.color_tracked = cv::Scalar(255, 0, 0);    // 绿色
         visualize_config.color_untracked = cv::Scalar(0, 0, 255);  // 红色
         visualize_config.font = cv::FONT_HERSHEY_SCRIPT_SIMPLEX;
-        visualize_config.font_scale = 0.5;
-        visualize_config.thickness = 2;
+        visualize_config.font_scale = 0.7;
+        visualize_config.thickness = 1;
         
     }
     
