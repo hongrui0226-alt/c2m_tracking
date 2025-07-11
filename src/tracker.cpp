@@ -594,6 +594,7 @@ Tracker::occlusion_spilt(const vector<string>& name_list, bool color_similar = t
     int max_num = 0;
     parsed_files.reserve(name_list.size());
     
+    // 获取单帧中出现的最多物体数
     for (const auto& name : name_list) {
         FileInfo info = parse_file_info(name);
         parsed_files.push_back(info);
@@ -612,7 +613,7 @@ Tracker::occlusion_spilt(const vector<string>& name_list, bool color_similar = t
         }
         results.push_back({0,0,0,0});
 
-        // 获取帧内目标最多的帧id
+        // 获取帧内目标最多的帧ids
         for (const auto& [frame_id, num] : ids_counts) {
             if (num == max_num) {
                 frame_ids.push_back(frame_id);
@@ -700,55 +701,114 @@ Tracker::occlusion_spilt(const vector<string>& name_list, bool color_similar = t
         
         // 分类文件
         vector<string> merged_list, separated_list;
-        vector<string> before_merged_list, after_separated_list, merging_list;
+        vector<string> before_merged_list, after_separated_list, invaild_list;
         vector<FileInfo> temp_list;
-        
-        for (const auto& file : parsed_files) {
-            if (file.is_merged) {
-                merged_list.push_back(file.name);
-                merged_index = file.frame_id;
-                last_merged = merged_index > last_merged ? merged_index : last_merged;
-            } else if (file.is_separated) {
-                separated_list.push_back(file.name);
-                separated_index = file.frame_id;
-                first_separated = separated_index < first_separated ? separated_index : first_separated;
-            } else {
-                temp_list.push_back(file);
-            }
-        }
-        
-        for (const auto& file : temp_list) { 
-            if (file.frame_id <= last_merged) {
-                before_merged_list.push_back(file.name);
-            }
-            else if (file.frame_id >= first_separated) {
-                after_separated_list.push_back(file.name);
-            }
-            else {
-                merging_list.push_back(file.name);
+
+        // 获取帧内目标最多的帧id
+        for (const auto& [frame_id, num] : ids_counts) {
+            if (num == max_num) {
+                frame_ids.push_back(frame_id);
             }
         }
 
-        // 返回结果
+        // 如果颜色相近，则找到最长连续帧
         if (color_similar) {
-            const size_t merged_size = merged_list.size() + before_merged_list.size();
-            const size_t separated_size = separated_list.size() + after_separated_list.size();
-            
-            return merged_size > separated_size
-                ? make_tuple(merged_list, before_merged_list, merging_list)
-                : make_tuple(separated_list, after_separated_list, merging_list);
-        } else {
-            vector<string> combined;
-            combined.reserve(merged_list.size() + before_merged_list.size() + 
-                            separated_list.size() + after_separated_list.size());
-            
-            combined.insert(combined.end(), merged_list.begin(), merged_list.end());
-            combined.insert(combined.end(), before_merged_list.begin(), before_merged_list.end());
-            combined.insert(combined.end(), separated_list.begin(), separated_list.end());
-            combined.insert(combined.end(), after_separated_list.begin(), after_separated_list.end());
-            
-            return make_tuple(combined, merging_list, vector<string>{});
+            // 找到最大连续帧
+            sort(frame_ids.begin(), frame_ids.end());
+            cons_frame_ids = findLongestConsSeg(frame_ids);
+
+            for (const auto& info : parsed_files) {
+                if (find(cons_frame_ids.begin(), cons_frame_ids.end(), info.frame_id) != cons_frame_ids.end()) {
+                    multi_occlu_files[info.frame_id].push_back(info);
+                } else {
+                    invaild_list.push_back(info.name);
+                }
+            }
+
+            size_t pos_1 = multi_occlu_files[cons_frame_ids[0]][0].name.find("_state");
+            string suffix_match_1 = multi_occlu_files[cons_frame_ids[0]][0].name.substr(pos_1);
+            size_t pos_2 = multi_occlu_files[cons_frame_ids[0]][1].name.find("_state");
+            string suffix_match_2 = multi_occlu_files[cons_frame_ids[0]][1].name.substr(pos_2);
+
+            vector<string> obj1_list, obj2_list;
+            for (const auto& [frame_id, files] : multi_occlu_files) {
+                for (const auto& info : files) {
+                    size_t tmp_pos = info.name.find("_state");
+                    string tmp_match = info.name.substr(tmp_pos);
+                    if (tmp_match == suffix_match_1) {
+                        obj1_list.push_back(info.name);
+                    } else if (tmp_match == suffix_match_2) {
+                        obj2_list.push_back(info.name);
+                    } else {
+                        cout << "Match Error !" << endl;
+                    }
+                }
+            }
+
+            return make_tuple(obj1_list, obj2_list, invaild_list);
         }
+        // 如果颜色不相近，则使用聚类算法
+        else {
+            vector<string> combined;
+            // 将所有单帧内目标最多的帧 id 对应的 name 放进 combined
+            for (const auto& info : parsed_files) {
+                if (find(frame_ids.begin(), frame_ids.end(), info.frame_id) != frame_ids.end()) {
+                    combined.push_back(info.name);
+                } else {
+                    invaild_list.push_back(info.name);
+                }
+            }
+
+            return make_tuple(combined, invaild_list, vector<string>{});
+
+            // for (const auto& file : parsed_files) {
+            //     if (file.is_merged) {
+            //         merged_list.push_back(file.name);
+            //         merged_index = file.frame_id;
+            //         last_merged = merged_index > last_merged ? merged_index : last_merged;
+            //     } else if (file.is_separated) {
+            //         separated_list.push_back(file.name);
+            //         separated_index = file.frame_id;
+            //         first_separated = separated_index < first_separated ? separated_index : first_separated;
+            //     } else {
+            //         temp_list.push_back(file);
+            //     }
+            // }
+            
+            // for (const auto& file : temp_list) { 
+            //     if (file.frame_id <= last_merged) {
+            //         before_merged_list.push_back(file.name);
+            //     }
+            //     else if (file.frame_id >= first_separated) {
+            //         after_separated_list.push_back(file.name);
+            //     }
+            //     else {
+            //         merging_list.push_back(file.name);
+            //     }
+            // }
+    
+            // 返回结果
+            // if (color_similar) {
+            //     const size_t merged_size = merged_list.size() + before_merged_list.size();
+            //     const size_t separated_size = separated_list.size() + after_separated_list.size();
+                
+            //     return merged_size > separated_size
+            //         ? make_tuple(merged_list, before_merged_list, merging_list)
+            //         : make_tuple(separated_list, after_separated_list, merging_list);
+            // } else {
+            // vector<string> combined;
+            // combined.reserve(merged_list.size() + before_merged_list.size() + 
+            //                 separated_list.size() + after_separated_list.size());
+            
+            // combined.insert(combined.end(), merged_list.begin(), merged_list.end());
+            // combined.insert(combined.end(), before_merged_list.begin(), before_merged_list.end());
+            // combined.insert(combined.end(), separated_list.begin(), separated_list.end());
+            // combined.insert(combined.end(), after_separated_list.begin(), after_separated_list.end());
+            
+            // return make_tuple(combined, merging_list, vector<string>{});
+            // }
+        }
+
     }
 }
 
@@ -1095,7 +1155,9 @@ void Tracker::tracking_group(const cv::Mat& frame,
             TrackXY motion = {static_cast<int>(-(vaild_threshold - xy[0]) * 0.1), 0};
             current_frame_info[idx].motion = motion;
             current_frame_info[idx].id = current_frame_info[min_idx].id;
-            current_frame_info[idx].state = 2;
+
+            // 下面state的处理：保证在发生重复遮挡时，处理一分二可以得到两种有区别的name格式，这是为了解决重复遮挡问题
+            current_frame_info[idx].state = current_frame_info[min_idx].state + 2;  
 
             frame_logs.push_back(
                 cv::format("UntrackCur: Matched %d with %d -> (%d, %d) state(2) with dist %f",
