@@ -1553,7 +1553,7 @@ void Tracker::reset() {
     track_over_flag = false;
     first_frame_flag = true;
     undetected_frame_count = 0;
-    invaild_num = 30;
+    invaild_num = 15;
     
     img2save.clear();
     last_frame_xy.clear();

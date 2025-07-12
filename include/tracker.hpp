@@ -129,7 +129,7 @@ private:
     bool detected_flag = false;
     bool track_over_flag = false;
     bool first_frame_flag = true;
-    int invaild_num = 30;
+    int invaild_num = 15;
     int undetected_frame_count = 0;
 
     // Track 数据
