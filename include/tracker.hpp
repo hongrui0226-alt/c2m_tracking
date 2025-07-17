@@ -93,7 +93,7 @@ struct TrackInfo
 {
     TrackXY xy;
     TrackXY motion;
-    int id;
+    int id = -1;
     int state = -1;
     float areas;
     cv::Mat current_canvas;
@@ -135,8 +135,8 @@ private:
     // Track 数据
     std::vector<cv::Mat> visualize_images, cv_debug_images;
     std::vector<string> visualize_names, cv_debug_names;
-    std::vector<TrackInfo> last_frame_info, current_frame_info;
-    std::vector<TrackXY> last_frame_xy, current_frame_xy;
+    std::vector<TrackInfo> last_frame_info, current_frame_info, untracked_info_dict;
+    std::vector<TrackXY> last_frame_xy, current_frame_xy, untracked_info_xy;
     std::vector<std::string> frame_logs;
     std::unordered_map<int, ImageData> img2save;
     cv::Mat blank_orig;
