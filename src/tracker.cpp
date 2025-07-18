@@ -410,9 +410,9 @@ vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame, bool debug=f
         // }
 
         if (area <= MIN_CONTOUR_AREA || area >= 460*450) {
-            frame_logs.push_back(
-                cv::format("Contour area %f = %dx%d , skipping", area, w, h)
-            );
+            // frame_logs.push_back(
+            //     cv::format("Contour area %f = %dx%d , skipping", area, w, h)
+            // );
             continue;
         }
 
@@ -849,6 +849,7 @@ void Tracker::tracking_group(const cv::Mat& frame,
     frame_count++;
     current_frame_info.clear();
     current_frame_xy.clear();
+    frame_logs.push_back(cv::format("Frame Count: %d", frame_count));
     
     //  && !is_all_white(tracked_data.image)
     for (auto& tracked_data : tracked_datavec) {
@@ -1165,6 +1166,14 @@ void Tracker::tracking_group(const cv::Mat& frame,
         auto& min_dist = matches[idx].distance;
         auto& id = current_frame_info[min_index].id;
         auto& state = current_frame_info[min_index].state;
+        if (min_index < 0) { // 帧率不稳导致的 Maybe min_index = -1
+            frame_logs.push_back(
+                cv::format("UntrackLast: %d tracked only one but distance is error", last_id)
+            );
+            last_frame_info[idx].xy[0] -= 40;   // 补足帧率不稳导致的位移偏差
+            untracked_info_dict.push_back(last_frame_info[idx]);
+            continue;
+        }
 
         if (state == -1 || id == -1) {  // 如果追踪到的也是未追踪的积木，则跳过
             frame_logs.push_back(
