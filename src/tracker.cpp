@@ -838,7 +838,7 @@ void Tracker::tracking_group(const cv::Mat& frame,
                 untracked_info_dict[i].xy[1] = 10;
             }
             // update x motion
-            untracked_info_dict[i].motion[0] = static_cast<int>(-(vaild_threshold - untracked_info_dict[i].xy[0]) * 0.05 - 20);
+            untracked_info_dict[i].motion[0] = static_cast<int>(-(vaild_threshold - untracked_info_dict[i].xy[0]) * 0.05 - 35);
         }
         // Clear last frame info
         last_frame_xy.clear();
@@ -881,7 +881,7 @@ void Tracker::tracking_group(const cv::Mat& frame,
                 untracked_info_dict[i].xy[1] = 10;
             }
             // update x motion
-            untracked_info_dict[i].motion[0] = static_cast<int>(-(vaild_threshold - untracked_info_dict[i].xy[0]) * 0.05 - 20);
+            untracked_info_dict[i].motion[0] = static_cast<int>(-(vaild_threshold - untracked_info_dict[i].xy[0]) * 0.05 - 35);
         }
         // Clear last frame info
         last_frame_xy.clear();
@@ -1012,7 +1012,7 @@ void Tracker::tracking_group(const cv::Mat& frame,
                 untracked_info_dict[i].xy[1] = 10;
             }
             // update x motion
-            untracked_info_dict[i].motion[0] = static_cast<int>(-(vaild_threshold - untracked_info_dict[i].xy[0]) * 0.05 - 20);
+            untracked_info_dict[i].motion[0] = static_cast<int>(-(vaild_threshold - untracked_info_dict[i].xy[0]) * 0.05 - 35);
         }
 
         // 可视化部分（使用RAII和范围循环）
@@ -1488,7 +1488,7 @@ void Tracker::tracking_group(const cv::Mat& frame,
             untracked_info_dict[i].xy[1] = 10;
         }
         // update x motion
-        untracked_info_dict[i].motion[0] = static_cast<int>(-(vaild_threshold - untracked_info_dict[i].xy[0]) * 0.05 - 20);
+        untracked_info_dict[i].motion[0] = static_cast<int>(-(vaild_threshold - untracked_info_dict[i].xy[0]) * 0.05 - 35);
     }
 
     // Visualize the tracking process
