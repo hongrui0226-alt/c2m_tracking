@@ -116,7 +116,7 @@ private:
     const int merge_dis_threshold = 100;
     const int separate_dis_threshold = 100;
     const int vaild_threshold = 500;
-    const int head_threshold = 440;
+    const int head_threshold = 400;
     const int tail_threshold = 85;
     const int vaild_area = 35;
     const int hsv_separation = 255;  // HSV色调分离阈值  TODO：待定

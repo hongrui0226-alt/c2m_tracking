@@ -19,7 +19,7 @@ using namespace std;
 const int FRAME_WIDTH = 1920;
 const int FRAME_HEIGHT = 1080;
 const double FPS = 120;
-const int TARGET_FRAMES = 280;
+const int TARGET_FRAMES = 350;
 
 // Define Class 
 class CameraManager {

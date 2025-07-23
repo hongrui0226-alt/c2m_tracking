@@ -209,25 +209,41 @@ cv::Mat Tracker::crop_and_pad_by_contour(const cv::Mat& image, const cv::Mat& bl
     }
 
     try {
-        // 转为灰度并二值化
-        cv::Mat gray, blank_gray, diff, thresh, thresh_clean;
-        cv::cvtColor(image, gray, cv::COLOR_BGR2GRAY);
-        cv::cvtColor(blank, blank_gray, cv::COLOR_BGR2GRAY);
-        cv::absdiff(gray, blank_gray, diff);
-        GaussianBlur(diff, diff, cv::Size(5, 5), 0);  // 模糊去噪，利于抠图
-        cv::threshold(diff, thresh, binary_threshold, 255, cv::THRESH_BINARY);
+       
+        vector<cv::Mat> blank_channels, frame_channels;
+        cv::Mat mask_b, mask_g, mask_r, mask;
+        cv::Mat diff_b, diff_g, diff_r;
+
+        cv::split(image, frame_channels);
+        cv::split(blank, blank_channels);
+        cv::absdiff(blank_channels[0], frame_channels[0], diff_b);
+        cv::absdiff(blank_channels[1], frame_channels[1], diff_g);
+        cv::absdiff(blank_channels[2], frame_channels[2], diff_r);
+        cv::threshold(diff_b, mask_b, binary_threshold, 255, cv::THRESH_BINARY);
+        cv::threshold(diff_g, mask_g, binary_threshold, 255, cv::THRESH_BINARY);
+        cv::threshold(diff_r, mask_r, binary_threshold, 255, cv::THRESH_BINARY);
+        cv::bitwise_or(mask_b, mask_g, mask);
+        cv::bitwise_or(mask, mask_r, mask);
+
+        // // 转为灰度并二值化
+        // cv::Mat gray, blank_gray, diff, thresh, thresh_clean;
+        // cv::cvtColor(image, gray, cv::COLOR_BGR2GRAY);
+        // cv::cvtColor(blank, blank_gray, cv::COLOR_BGR2GRAY);
+        // cv::absdiff(gray, blank_gray, diff);
+        // GaussianBlur(diff, diff, cv::Size(5, 5), 0);  // 模糊去噪，利于抠图
+        // cv::threshold(diff, thresh, binary_threshold, 255, cv::THRESH_BINARY);
 
         // 形态学开运算去噪
         cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
-        cv::morphologyEx(thresh, thresh_clean, cv::MORPH_OPEN, kernel);
+        cv::morphologyEx(mask, mask, cv::MORPH_OPEN, kernel);
 
         // 创建白色背景
         cv::Mat white_image(image.size(), CV_8UC3, cv::Scalar(255, 255, 255));
 
         // 使用掩码选择性保留原图或替换为白色
         cv::Mat mask_inv, foreground, background, result;
-        cv::bitwise_not(thresh_clean, mask_inv);
-        cv::bitwise_and(image, image, foreground, thresh_clean);
+        cv::bitwise_not(mask, mask_inv);
+        cv::bitwise_and(image, image, foreground, mask);
         cv::bitwise_and(white_image, white_image, background, mask_inv);
         cv::add(foreground, background, result);
 
