@@ -466,6 +466,19 @@ int main(int argc, char** argv) {
     google::ParseCommandLineFlags(&argc, &argv, true);
 
     vector<string> test_data = loadFromFile(FLAGS_file_path);
+    bool merged_flag = false;
+    int max_num = 1;
+    unordered_map<int, size_t> ids_counts;
+    for (const auto& name : test_data) {
+        FileInfo info = parse_file_info(name);
+        ids_counts[info.frame_id]++;
+        cout << "info.frame_id: " << info.frame_id << endl;
+        if (ids_counts[info.frame_id] > max_num) {
+            merged_flag = true;
+            cout << "merged_flag is true!" << endl;
+            break;
+        }
+    }
     auto [obj1_list, obj2_list, merging_list] = occlusion_spilt(test_data);
     cout << "obj1_list: " << endl;
     for (const auto& str : obj1_list) {

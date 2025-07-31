@@ -118,10 +118,11 @@ private:
     const int vaild_threshold = 500;
     const int head_threshold = 400;
     const int tail_threshold = 85;
+    const int tail_buffer_threshold = 105;
     const int vaild_area = 35;
     const int hsv_separation = 255;  // HSV色调分离阈值  TODO：待定
     const int tolerance_undetected_num = 100;
-    const int binary_threshold = 20;
+    const int binary_threshold = 15;
     const int MIN_CONTOUR_AREA = 80; // 需根据实际定义
     const int SOBEL_THRESH = 50;       // 需根据实际定义
 

@@ -632,7 +632,7 @@ Tracker::occlusion_spilt(const vector<string>& name_list, bool color_similar = t
         for (int m=0; m < max_num; m++) {
             tmp_results.push_back(m);
         }
-        results.push_back({0,0,0,0});
+        results.push_back(tmp_results);
 
         // 获取帧内目标最多的帧ids
         for (const auto& [frame_id, num] : ids_counts) {
@@ -1205,6 +1205,13 @@ void Tracker::tracking_group(const cv::Mat& frame,
             cout << "Repeated occlusion ! " << endl;
             continue;
         }
+        if (last_frame_info[idx].xy[0] + last_frame_info[idx].motion[0] < tail_buffer_threshold) { // 位于结尾的缓冲区，则忽略这次遮挡
+            frame_logs.push_back(
+                cv::format("UntrackLast: %d is in tail_buffer, skip", last_id)
+            );
+            cout << "In Tail Buffer ! " << endl;
+            continue;
+        }
 
         // 判断是否处于可以合并的距离之内
         if (min_dist < merge_dis_threshold) {
@@ -1551,7 +1558,8 @@ void Tracker::tracking_group(const cv::Mat& frame,
 }
 
 void Tracker::save_results(bool save_error=true) {
-    
+    vector<int> merged_ids, unmerged_ids;
+
     for (const auto& [id, data] : img2save) {
         // 判断是否遮挡
         bool merged_flag = false;
@@ -1562,105 +1570,71 @@ void Tracker::save_results(bool save_error=true) {
             ids_counts[info.frame_id]++;
             if (ids_counts[info.frame_id] > max_num) {
                 merged_flag = true;
+                cout << id << " merged_flag is true!" << endl;
                 break;
             }
         }
-
-        // 判断这组积木存在遮挡
-        if (merged_flag) {
-            // 创建文件夹
-            fs::create_directories(fs::path(result_dir) / ("c_" + std::to_string(id) + "_0"));
-            fs::create_directories(fs::path(result_dir) / ("c_" + std::to_string(id) + "_1"));
-
-            vector<double> hsv_means;
-            for (const auto& img : data.images) {
-                // 1. 创建掩码：像素值 < 250 的区域
-                vector<cv::Mat> channels;
-                cv::Mat mask_b, mask_g, mask_r, mask;
-                cv::split(img, channels);
-                cv::threshold(channels[0], mask_b, 250, 255, cv::THRESH_BINARY_INV);
-                cv::threshold(channels[1], mask_g, 250, 255, cv::THRESH_BINARY_INV);
-                cv::threshold(channels[2], mask_r, 250, 255, cv::THRESH_BINARY_INV);
-                cv::bitwise_and(mask_b, mask_g, mask);
-                cv::bitwise_and(mask, mask_r, mask);
-
-                // 2. 转换为HSV色彩空间
-                cv::Mat hsv_img;
-                cv::cvtColor(img, hsv_img, cv::COLOR_BGR2HSV);
-                
-                // 3. 分离HSV通道
-                std::vector<cv::Mat> hsv_channels;
-                cv::split(hsv_img, hsv_channels);
-                cv::Mat h_channel = hsv_channels[0];  // H通道
-                
-                // 4. 计算掩码区域内的H通道均值
-                cv::Scalar mean_value = cv::mean(h_channel, mask);
-                
-                // 5. 存储结果
-                hsv_means.push_back(mean_value[0]);
-            }
-
-            // 如果色调差异小于阈值，则进行轨迹切割，反之则进行颜色聚类
-            auto [min, max] = minmax_element(hsv_means.begin(), hsv_means.end());
-            if ((*max - *min) < hsv_separation) {
-                
-                auto [obj1_list, obj2_list, merging_list] = occlusion_spilt(data.names, true);
-                
-                if (merging_list[0] == "MultiOcclusionSpilt") {   // 发生多遮挡
-                    int index = 0;
-                    for (const auto& name : obj1_list) {
-                        if (name == "xxxxx") {
-                            index++;  // 不同类别分割
-                            continue;
-                        }
-                        auto pos = std::find(data.names.begin(), data.names.end(), name);
-                        // string id_str = "c_" + std::to_string(id) + cv::format("_%d", index);
-                        string folder_index = "c_" + std::to_string(id) + cv::format("_%d", index);
-                        cv::imwrite((fs::path(result_dir) / folder_index / name).string(), 
-                                    data.images[pos - data.names.begin()]);
-                    }
-                } else {   // 发生二遮挡
-                    for (const auto& name : obj1_list) {
-                        auto pos = std::find(data.names.begin(), data.names.end(), name);
-                        cv::imwrite((fs::path(result_dir) / ("c_" + std::to_string(id) + "_0") / name).string(), 
-                                    data.images[pos - data.names.begin()]);
-                    }
-                    for (const auto& name : obj2_list) {
-                        auto pos = std::find(data.names.begin(), data.names.end(), name);
-                        cv::imwrite((fs::path(result_dir) / ("c_" + std::to_string(id) + "_1") / name).string(), 
-                                    data.images[pos - data.names.begin()]);
-                    }
+        
+        if (merged_flag == true) merged_ids.push_back(id);
+        else unmerged_ids.push_back(id);
+    }
     
-                    if (save_error) {
-                        fs::create_directories(fs::path(result_dir) / ("e_" + std::to_string(id)));
-                        for (const auto& name : merging_list) {
-                            auto pos = std::find(data.names.begin(), data.names.end(), name);
-                            cv::imwrite((fs::path(result_dir) / ("e_" + std::to_string(id)) / name).string(), 
-                                        data.images[pos - data.names.begin()]);
-                        }
-                    }
-                }
-            }
-            else {
-                auto [combinded, merging_list, other] = occlusion_spilt(data.names, false);
+    // 处理存在遮挡的积木
+    for (const auto& id : merged_ids) {
+        ImageData& data = img2save[id];
 
-                vector<double> hsv_unmerged;
-                vector<string> obj1_list, obj2_list;
-                for (const auto& name : combinded) {
-                    auto pos = std::find(data.names.begin(), data.names.end(), name);
-                    hsv_unmerged.push_back(hsv_means[pos - data.names.begin()]);
-                }
-                std::sort(hsv_unmerged.begin(), hsv_unmerged.end());
-                for (size_t i=0; i<hsv_unmerged.size(); i++) {
-                    double hsv_dist_head = hsv_unmerged[i] - hsv_unmerged[0];
-                    double hsv_dist_tail = hsv_unmerged.back() - hsv_unmerged[i];
-                    if (hsv_dist_head > hsv_dist_tail) {
-                        for (size_t j=0; j<i; j++)
-                            obj1_list.push_back(combinded[j]);
-                        for (size_t j=i; j<combinded.size(); j++)
-                            obj2_list.push_back(combinded[j]);
+        // 创建文件夹
+        fs::create_directories(fs::path(result_dir) / ("c_" + std::to_string(id) + "_0"));
+        fs::create_directories(fs::path(result_dir) / ("c_" + std::to_string(id) + "_1"));
+
+        vector<double> hsv_means;
+        for (const auto& img : data.images) {
+            // 1. 创建掩码：像素值 < 250 的区域
+            vector<cv::Mat> channels;
+            cv::Mat mask_b, mask_g, mask_r, mask;
+            cv::split(img, channels);
+            cv::threshold(channels[0], mask_b, 250, 255, cv::THRESH_BINARY_INV);
+            cv::threshold(channels[1], mask_g, 250, 255, cv::THRESH_BINARY_INV);
+            cv::threshold(channels[2], mask_r, 250, 255, cv::THRESH_BINARY_INV);
+            cv::bitwise_and(mask_b, mask_g, mask);
+            cv::bitwise_and(mask, mask_r, mask);
+
+            // 2. 转换为HSV色彩空间
+            cv::Mat hsv_img;
+            cv::cvtColor(img, hsv_img, cv::COLOR_BGR2HSV);
+            
+            // 3. 分离HSV通道
+            std::vector<cv::Mat> hsv_channels;
+            cv::split(hsv_img, hsv_channels);
+            cv::Mat h_channel = hsv_channels[0];  // H通道
+            
+            // 4. 计算掩码区域内的H通道均值
+            cv::Scalar mean_value = cv::mean(h_channel, mask);
+            
+            // 5. 存储结果
+            hsv_means.push_back(mean_value[0]);
+        }
+
+        // 如果色调差异小于阈值，则进行轨迹切割，反之则进行颜色聚类
+        auto [min, max] = minmax_element(hsv_means.begin(), hsv_means.end());
+        if ((*max - *min) < hsv_separation) {
+            
+            auto [obj1_list, obj2_list, merging_list] = occlusion_spilt(data.names, true);
+            
+            if (merging_list[0] == "MultiOcclusionSpilt") {   // 发生多遮挡
+                int index = 0;
+                for (const auto& name : obj1_list) {
+                    if (name == "xxxxx") {
+                        index++;  // 不同类别分割
+                        continue;
                     }
+                    auto pos = std::find(data.names.begin(), data.names.end(), name);
+                    // string id_str = "c_" + std::to_string(id) + cv::format("_%d", index);
+                    string folder_index = "c_" + std::to_string(id) + cv::format("_%d", index);
+                    cv::imwrite((fs::path(result_dir) / folder_index / name).string(), 
+                                data.images[pos - data.names.begin()]);
                 }
+            } else {   // 发生二遮挡
                 for (const auto& name : obj1_list) {
                     auto pos = std::find(data.names.begin(), data.names.end(), name);
                     cv::imwrite((fs::path(result_dir) / ("c_" + std::to_string(id) + "_0") / name).string(), 
@@ -1682,17 +1656,59 @@ void Tracker::save_results(bool save_error=true) {
                 }
             }
         }
-        // 判断这组积木不存在遮挡
         else {
-            fs::create_directories(fs::path(result_dir) / std::to_string(id));
-            for (size_t i=0; i<data.names.size(); i++) {
-                if (data.images[i].empty()) {
-                    cout << data.names[i] << endl;
-                    continue;
-                }
-                cv::imwrite((fs::path(result_dir) / std::to_string(id) / data.names[i]).string(), 
-                            data.images[i]);
+            auto [combinded, merging_list, other] = occlusion_spilt(data.names, false);
+
+            vector<double> hsv_unmerged;
+            vector<string> obj1_list, obj2_list;
+            for (const auto& name : combinded) {
+                auto pos = std::find(data.names.begin(), data.names.end(), name);
+                hsv_unmerged.push_back(hsv_means[pos - data.names.begin()]);
             }
+            std::sort(hsv_unmerged.begin(), hsv_unmerged.end());
+            for (size_t i=0; i<hsv_unmerged.size(); i++) {
+                double hsv_dist_head = hsv_unmerged[i] - hsv_unmerged[0];
+                double hsv_dist_tail = hsv_unmerged.back() - hsv_unmerged[i];
+                if (hsv_dist_head > hsv_dist_tail) {
+                    for (size_t j=0; j<i; j++)
+                        obj1_list.push_back(combinded[j]);
+                    for (size_t j=i; j<combinded.size(); j++)
+                        obj2_list.push_back(combinded[j]);
+                }
+            }
+            for (const auto& name : obj1_list) {
+                auto pos = std::find(data.names.begin(), data.names.end(), name);
+                cv::imwrite((fs::path(result_dir) / ("c_" + std::to_string(id) + "_0") / name).string(), 
+                            data.images[pos - data.names.begin()]);
+            }
+            for (const auto& name : obj2_list) {
+                auto pos = std::find(data.names.begin(), data.names.end(), name);
+                cv::imwrite((fs::path(result_dir) / ("c_" + std::to_string(id) + "_1") / name).string(), 
+                            data.images[pos - data.names.begin()]);
+            }
+
+            if (save_error) {
+                fs::create_directories(fs::path(result_dir) / ("e_" + std::to_string(id)));
+                for (const auto& name : merging_list) {
+                    auto pos = std::find(data.names.begin(), data.names.end(), name);
+                    cv::imwrite((fs::path(result_dir) / ("e_" + std::to_string(id)) / name).string(), 
+                                data.images[pos - data.names.begin()]);
+                }
+            }
+        }
+    }
+
+    // 处理不存在遮挡的积木
+    for (const auto& id : unmerged_ids) {
+        ImageData& data = img2save[id];
+        fs::create_directories(fs::path(result_dir) / std::to_string(id));
+        for (size_t i=0; i<data.names.size(); i++) {
+            if (data.images[i].empty()) {
+                cout << data.names[i] << endl;
+                continue;
+            }
+            cv::imwrite((fs::path(result_dir) / std::to_string(id) / data.names[i]).string(), 
+                        data.images[i]);
         }
     }
 
@@ -1706,6 +1722,7 @@ void Tracker::save_results(bool save_error=true) {
 
 void Tracker::post_process() {
     vector<int> nonused_ids;
+    vector<int> merged_ids;
 
     for (const auto& [id, data] : img2save) {
         if (data.images.empty()) {
@@ -1721,98 +1738,66 @@ void Tracker::post_process() {
             ids_counts[info.frame_id]++;
             if (ids_counts[info.frame_id] > max_num) {
                 merged_flag = true;
+                cout << id << " merged_flag is true!" << endl;
                 break;
             }
         }
 
-        // 判断这组积木存在遮挡
-        if (merged_flag) {
+        if (merged_flag) merged_ids.push_back(id);
+    }
+    
+    for (const int& id : merged_ids) {
+        ImageData& data = img2save[id];
 
-            vector<double> hsv_means;
-            for (const auto& img : data.images) {
-                // 1. 创建掩码：像素值 < 250 的区域
-                vector<cv::Mat> channels;
-                cv::Mat mask_b, mask_g, mask_r, mask;
-                cv::split(img, channels);
-                cv::threshold(channels[0], mask_b, 250, 255, cv::THRESH_BINARY_INV);
-                cv::threshold(channels[1], mask_g, 250, 255, cv::THRESH_BINARY_INV);
-                cv::threshold(channels[2], mask_r, 250, 255, cv::THRESH_BINARY_INV);
-                cv::bitwise_and(mask_b, mask_g, mask);
-                cv::bitwise_and(mask, mask_r, mask);
+        vector<double> hsv_means;
+        for (const auto& img : data.images) {
+            // 1. 创建掩码：像素值 < 250 的区域
+            vector<cv::Mat> channels;
+            cv::Mat mask_b, mask_g, mask_r, mask;
+            cv::split(img, channels);
+            cv::threshold(channels[0], mask_b, 250, 255, cv::THRESH_BINARY_INV);
+            cv::threshold(channels[1], mask_g, 250, 255, cv::THRESH_BINARY_INV);
+            cv::threshold(channels[2], mask_r, 250, 255, cv::THRESH_BINARY_INV);
+            cv::bitwise_and(mask_b, mask_g, mask);
+            cv::bitwise_and(mask, mask_r, mask);
 
-                // 2. 转换为HSV色彩空间
-                cv::Mat hsv_img;
-                cv::cvtColor(img, hsv_img, cv::COLOR_BGR2HSV);
-                
-                // 3. 分离HSV通道
-                std::vector<cv::Mat> hsv_channels;
-                cv::split(hsv_img, hsv_channels);
-                cv::Mat h_channel = hsv_channels[0];  // H通道
-                
-                // 4. 计算掩码区域内的H通道均值
-                cv::Scalar mean_value = cv::mean(h_channel, mask);
-                
-                // 5. 存储结果
-                hsv_means.push_back(mean_value[0]);
-            }
+            // 2. 转换为HSV色彩空间
+            cv::Mat hsv_img;
+            cv::cvtColor(img, hsv_img, cv::COLOR_BGR2HSV);
+            
+            // 3. 分离HSV通道
+            std::vector<cv::Mat> hsv_channels;
+            cv::split(hsv_img, hsv_channels);
+            cv::Mat h_channel = hsv_channels[0];  // H通道
+            
+            // 4. 计算掩码区域内的H通道均值
+            cv::Scalar mean_value = cv::mean(h_channel, mask);
+            
+            // 5. 存储结果
+            hsv_means.push_back(mean_value[0]);
+        }
 
-            // 如果色调差异小于阈值，则进行轨迹切割，反之则进行颜色聚类
-            auto [min, max] = minmax_element(hsv_means.begin(), hsv_means.end());
-            if ((*max - *min) < hsv_separation) {
-                auto [obj1_list, obj2_list, merging_list] = occlusion_spilt(data.names, true);
-                cout << "id: " << id << endl;
-                cout << "obj1_list size: " << obj1_list.size() << endl;
-                cout << "obj2_list size: " << obj2_list.size() << endl;
-                cout << "merging_list size: " << merging_list.size() << endl;
-                if (merging_list[0] == "MultiOcclusionSpilt") {   // 发生多遮挡
-                    cout << "MultiOcclusionSpilt" << endl;
-                    int obj_id = tracked_id++;
-                    for (const auto& name : obj1_list) {
-                        if (name == "xxxxx") {
-                            obj_id = tracked_id++;  // 不同类别分割
-                            continue;
-                        }
-                        auto pos = std::find(data.names.begin(), data.names.end(), name);
-                        img2save[obj_id].images.push_back(data.images[pos - data.names.begin()].clone());
-                        img2save[obj_id].names.push_back(name);
+        // 如果色调差异小于阈值，则进行轨迹切割，反之则进行颜色聚类
+        auto [min, max] = minmax_element(hsv_means.begin(), hsv_means.end());
+        if ((*max - *min) < hsv_separation) {
+            auto [obj1_list, obj2_list, merging_list] = occlusion_spilt(data.names, true);
+            cout << "id: " << id << endl;
+            cout << "obj1_list size: " << obj1_list.size() << endl;
+            cout << "obj2_list size: " << obj2_list.size() << endl;
+            cout << "merging_list size: " << merging_list.size() << endl;
+            if (merging_list[0] == "MultiOcclusionSpilt") {   // 发生多遮挡
+                cout << "MultiOcclusionSpilt" << endl;
+                int obj_id = tracked_id++;
+                for (const auto& name : obj1_list) {
+                    if (name == "xxxxx") {
+                        obj_id = tracked_id++;  // 不同类别分割
+                        continue;
                     }
-                } else {  // 发生二遮挡
-                    int id_1 = tracked_id++;
-                    for (const auto& name : obj1_list) {
-                        auto pos = std::find(data.names.begin(), data.names.end(), name);
-                        img2save[id_1].images.push_back(data.images[pos - data.names.begin()].clone());
-                        img2save[id_1].names.push_back(name);
-                    }
-                    int id_2 = tracked_id++;
-                    for (const auto& name : obj2_list) {
-                        auto pos = std::find(data.names.begin(), data.names.end(), name);
-                        img2save[id_2].images.push_back(data.images[pos - data.names.begin()].clone());
-                        img2save[id_2].names.push_back(name);
-                    }
-                }
-            }
-            else {
-                auto [combinded, merging_list, other] = occlusion_spilt(data.names, false);
-                cout << "id: " << id << endl;
-                cout << "combinded size: " << combinded.size() << endl;
-                cout << "merging_list size: " << merging_list.size() << endl;
-                vector<double> hsv_unmerged;
-                vector<string> obj1_list, obj2_list;
-                for (const auto& name : combinded) {
                     auto pos = std::find(data.names.begin(), data.names.end(), name);
-                    hsv_unmerged.push_back(hsv_means[pos - data.names.begin()]);
+                    img2save[obj_id].images.push_back(data.images[pos - data.names.begin()].clone());
+                    img2save[obj_id].names.push_back(name);
                 }
-                std::sort(hsv_unmerged.begin(), hsv_unmerged.end());
-                for (size_t i=0; i<hsv_unmerged.size(); i++) {
-                    double hsv_dist_head = hsv_unmerged[i] - hsv_unmerged[0];
-                    double hsv_dist_tail = hsv_unmerged.back() - hsv_unmerged[i];
-                    if (hsv_dist_head > hsv_dist_tail) {
-                        for (size_t j=0; j<i; j++)
-                            obj1_list.push_back(combinded[j]);
-                        for (size_t j=i; j<combinded.size(); j++)
-                            obj2_list.push_back(combinded[j]);
-                    }
-                }
+            } else {  // 发生二遮挡
                 int id_1 = tracked_id++;
                 for (const auto& name : obj1_list) {
                     auto pos = std::find(data.names.begin(), data.names.end(), name);
@@ -1826,12 +1811,48 @@ void Tracker::post_process() {
                     img2save[id_2].names.push_back(name);
                 }
             }
-
-            // 删除这组遮挡的id内容
-            // img2save.erase(id);
-            nonused_ids.push_back(id);
         }
+        else {
+            auto [combinded, merging_list, other] = occlusion_spilt(data.names, false);
+            cout << "id: " << id << endl;
+            cout << "combinded size: " << combinded.size() << endl;
+            cout << "merging_list size: " << merging_list.size() << endl;
+            vector<double> hsv_unmerged;
+            vector<string> obj1_list, obj2_list;
+            for (const auto& name : combinded) {
+                auto pos = std::find(data.names.begin(), data.names.end(), name);
+                hsv_unmerged.push_back(hsv_means[pos - data.names.begin()]);
+            }
+            std::sort(hsv_unmerged.begin(), hsv_unmerged.end());
+            for (size_t i=0; i<hsv_unmerged.size(); i++) {
+                double hsv_dist_head = hsv_unmerged[i] - hsv_unmerged[0];
+                double hsv_dist_tail = hsv_unmerged.back() - hsv_unmerged[i];
+                if (hsv_dist_head > hsv_dist_tail) {
+                    for (size_t j=0; j<i; j++)
+                        obj1_list.push_back(combinded[j]);
+                    for (size_t j=i; j<combinded.size(); j++)
+                        obj2_list.push_back(combinded[j]);
+                }
+            }
+            int id_1 = tracked_id++;
+            for (const auto& name : obj1_list) {
+                auto pos = std::find(data.names.begin(), data.names.end(), name);
+                img2save[id_1].images.push_back(data.images[pos - data.names.begin()].clone());
+                img2save[id_1].names.push_back(name);
+            }
+            int id_2 = tracked_id++;
+            for (const auto& name : obj2_list) {
+                auto pos = std::find(data.names.begin(), data.names.end(), name);
+                img2save[id_2].images.push_back(data.images[pos - data.names.begin()].clone());
+                img2save[id_2].names.push_back(name);
+            }
+        }
+
+        // 删除这组遮挡的id内容
+        // img2save.erase(id);
+        nonused_ids.push_back(id);
     }
+    
     // 安全删除方法
     auto it = img2save.begin();
     while (it != img2save.end()) {
