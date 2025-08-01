@@ -116,7 +116,8 @@ private:
     const int merge_dis_threshold = 100;
     const int separate_dis_threshold = 100;
     const int vaild_threshold = 500;
-    const int head_threshold = 400;
+    const int head_threshold = 440;
+    const int head_buffer_threshold = 400;
     const int tail_threshold = 85;
     const int tail_buffer_threshold = 105;
     const int vaild_area = 35;

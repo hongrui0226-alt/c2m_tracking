@@ -967,7 +967,7 @@ void Tracker::tracking_group(const cv::Mat& frame,
             cout << "b_idx: " << b_idx << endl;
             auto& info = current_frame_info[b_idx];
 
-            if (info.xy[0] >= head_threshold) {  // 靠近入口
+            if (info.xy[0] >= head_buffer_threshold) {  // 靠近入口
                 info.motion = init_motion;
                 info.id = tracked_id++;
                 info.state = 0;
@@ -1205,6 +1205,7 @@ void Tracker::tracking_group(const cv::Mat& frame,
             cout << "Repeated occlusion ! " << endl;
             continue;
         }
+        // 预测下落没结束，但实际结束的，为了解决帧率不稳导致的，提高鲁棒性
         if (last_frame_info[idx].xy[0] + last_frame_info[idx].motion[0] < tail_buffer_threshold) { // 位于结尾的缓冲区，则忽略这次遮挡
             frame_logs.push_back(
                 cv::format("UntrackLast: %d is in tail_buffer, skip", last_id)
@@ -1333,7 +1334,19 @@ void Tracker::tracking_group(const cv::Mat& frame,
                         )
                     );
                     untracked_info_dict[match_index].xy = {1000, 1000};  // 直接让这个消失
-                }
+                } 
+                // 位于上界缓冲区内
+                else if (xy[0] >= head_buffer_threshold) {
+                    current_frame_info[idx].id = tracked_id++;
+                    current_frame_info[idx].motion = init_motion;
+                    current_frame_info[idx].state = 0;
+                    
+                    frame_logs.push_back(
+                        cv::format("New block in buffer %d -> (%d, %d)", current_frame_info[idx].id, xy[0], xy[1])
+                    );
+                    cout << "In Head Buffer ! " << endl;
+                } 
+                // 新积木但不在入口处
                 else {
                     frame_logs.push_back(
                         cv::format("UntrackCur: New %d but no other blocks", 
@@ -1345,6 +1358,7 @@ void Tracker::tracking_group(const cv::Mat& frame,
                 continue;
             }
 
+            // 与历史字典匹配
             // 计算该积木与当前帧所有其他的积木的距离，并找到最近的
             double min_dist = std::numeric_limits<double>::max();
             int min_idx = 0;
@@ -1432,6 +1446,17 @@ void Tracker::tracking_group(const cv::Mat& frame,
                     );
                     untracked_info_dict[match_index].xy = {1000, 1000};  // 直接让这个消失
                 }
+                // 位于上界缓冲区内
+                else if (xy[0] >= head_buffer_threshold) {
+                    current_frame_info[idx].id = tracked_id++;
+                    current_frame_info[idx].motion = init_motion;
+                    current_frame_info[idx].state = 0;
+                    
+                    frame_logs.push_back(
+                        cv::format("New block in buffer %d -> (%d, %d)", current_frame_info[idx].id, xy[0], xy[1])
+                    );
+                    cout << "In Head Buffer ! " << endl;
+                }
                 // 距离过大，认为是异常追踪
                 else {
                     cout << "Separate too far !" << min_dist << " > " << separate_dis_threshold << endl;
@@ -1443,6 +1468,15 @@ void Tracker::tracking_group(const cv::Mat& frame,
                     );
                 }
                 
+                continue;
+            }
+
+            // 预测下落结束，实际没结束的，为了解决帧率不稳导致的，提高鲁棒性
+            if (current_frame_info[idx].xy[0] < tail_buffer_threshold) {
+                frame_logs.push_back(
+                    "UntrackCur: There is a block in tail_buffer, skip"
+                );
+                cout << "In Tail Buffer ! " << endl;
                 continue;
             }
 
