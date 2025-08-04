@@ -1234,6 +1234,20 @@ void Tracker::tracking_group(const cv::Mat& frame,
 
         // 判断是否处于可以合并的距离之内
         if (min_dist < merge_dis_threshold) {
+            // 处理多遮挡的异常情况：还有此前已经发生过遮挡，又与另一个积木遮挡
+            for (auto& info : last_frame_info) {
+                if (info.id == last_id) {
+                    info.id = id;
+                }
+            }
+            for (auto& info : current_frame_info) {
+                if (info.id == last_id) {
+                    info.id = id;
+                    frame_logs.push_back(
+                        cv::format("Modify id %d -> id %d", last_id, id)
+                    );
+                }
+            }
             // Modyfy names of the merged images
             auto name_list = img2save[last_id].names;
             img2save[last_id].names.clear();
