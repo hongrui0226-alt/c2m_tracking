@@ -1195,10 +1195,10 @@ void Tracker::tracking_group(const cv::Mat& frame,
     // 处理异常追踪 ：last未追踪到的 -> 多合一遮挡
     for (auto& idx : unmatched_a) {
         
-        auto& last_id = last_frame_info[idx].id;
+        int last_id = last_frame_info[idx].id;
         auto& min_index = matches[idx].other_idx;
         auto& min_dist = matches[idx].distance;
-        auto& id = current_frame_info[min_index].id;
+        int id = current_frame_info[min_index].id;
         auto& state = current_frame_info[min_index].state;
         if (min_index < 0) { // 帧率不稳导致的 Maybe min_index = -1
             frame_logs.push_back(
