@@ -24,6 +24,19 @@ struct DataLoopInfo {
     string url = "http://10.1.7.250/dataserver/api/samples/upload_inference";
 };
 
+class ThreadGuard {
+public:
+    explicit ThreadGuard(std::thread t) : thread_(std::move(t)) {}
+    ~ThreadGuard() {
+        if (thread_.joinable()) {
+            thread_.join();  // 或 thread_.join();
+            cout << "---------------- thread join ----------------------" << endl;
+        }
+    }
+private:
+    std::thread thread_;
+};
+
 // Socket Server类
 class CameraServer {
 
@@ -39,12 +52,12 @@ private:
     Tracker cam1_tracker, cam2_tracker;
 
     mutex mtx;
-    
+
     // 服务器主循环
     void serverLoop(SocketInfo& socket_info);
     int connectToClient(const string& clientIp, int clientPort);
     void initServerSocket(SocketInfo& socket_info);
-    
+
 public:
     CameraServer(int node_index, int cam1_server_port, int cam2_server_port) : 
         cam1_server_port(cam1_server_port), 
@@ -52,18 +65,18 @@ public:
         node_index(node_index),
         running(false) {
 
-            // // Init server sockets
-            // initServerSocket(cam1_socket_info);
-            // initServerSocket(cam2_socket_info);
-
-            svr1.Get("/get_data", [this, cam1_server_port]
-                    (const httplib::Request&, httplib::Response& res) {
-                this->create_serverloop(cam1_server_port, res);
+            svr1.Get("/get_data", [this, cam1_server_port](const httplib::Request&, httplib::Response& res) {
+                auto t = std::thread([this, cam1_server_port, &res]() {
+                    this->create_serverloop(cam1_server_port, res);
+                });
+                ThreadGuard guard(std::move(t));  // 自动管理线程释放
             });
-            
-            svr2.Get("/get_data", [this, cam2_server_port]
-                    (const httplib::Request&, httplib::Response& res) {
-                this->create_serverloop(cam2_server_port, res);
+
+            svr2.Get("/get_data", [this, cam2_server_port](const httplib::Request&, httplib::Response& res) {
+                auto t = std::thread([this, cam2_server_port, &res]() {
+                    this->create_serverloop(cam2_server_port, res);
+                });
+                ThreadGuard guard(std::move(t));  // 自动管理线程释放
             });
 
             // Init camera_manager

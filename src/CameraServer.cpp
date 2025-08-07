@@ -1,6 +1,7 @@
 #include "CameraServer.hpp"
 
 DEFINE_string(process_folder, "/home/sunrise/qimeng/dataset/videos", "Process folder which is used to track");
+DEFINE_int32(node_index, 1, "Index of X5 server.");
 
 // 服务器主循环
 void CameraServer::create_serverloop(int port, httplib::Response& res) {
@@ -761,12 +762,14 @@ int main(int argc, char** argv) {
     // 注册信号处理
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
+
+    google::ParseCommandLineFlags(&argc, &argv, true);
     
     // 创建并启动Socket服务器
     int cam1_port = 8085;
     int cam2_port = 8086;
-    int node_index = 1; // 节点索引
-    CameraServer server(node_index, cam1_port, cam2_port);
+    // int node_index = 1; // 节点索引
+    CameraServer server(FLAGS_node_index, cam1_port, cam2_port);
     server.start();
 
     // 主循环等待信号
