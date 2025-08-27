@@ -18,6 +18,8 @@
 #include <spdlog/sinks/basic_file_sink.h>
 #include <charconv>
 
+#include "hb_infer.hpp"
+
 using namespace std;
 
 namespace fs = std::filesystem;  // 命名空间别名
@@ -81,13 +83,12 @@ struct MatchResult {
 
 // 结构化数据类型（替代numpy.dtype）
 struct TrackedData {
-    int frame_id;
     int cx;
     int cy;
     float areas;
     cv::Mat image;  // 224x224x3的图像
     
-    TrackedData() : frame_id(0), cx(0), cy(0), areas(0.0f), image(224, 224, CV_8UC3) {}
+    TrackedData() : cx(0), cy(0), areas(0.0f), image(224, 224, CV_8UC3) {}
 };
 
 struct TrackInfo
@@ -113,13 +114,13 @@ private:
     
     // Track 参数
     TrackXY init_motion = {-30, 0};  // 初始运动向量
-    const int dis_threshold = 60;
-    const int merge_dis_threshold = 100;
-    const int separate_dis_threshold = 100;
+    const int dis_threshold = 40;
+    const int merge_dis_threshold = 80;
+    const int separate_dis_threshold = 80;
     const int vaild_threshold = 500;
     const int head_threshold = 440;
     const int head_buffer_threshold = 400;
-    const int tail_threshold = 85;
+    const int tail_threshold = 80;
     const int tail_buffer_threshold = 105;
     const int vaild_area = 35;
     const int hsv_separation = 255;  // HSV色调分离阈值  TODO：待定
@@ -154,6 +155,10 @@ private:
     std::string result_dir;
     std::string visualize_dir;
     std::string cv_debug_dir;
+    std::string model_path = "yolo11n-modified.bin";
+
+    // 检测器
+    HBInfer hb_infer;
     
     // // 共享内存（简化实现）
     // std::vector<TrackedData> shared_xy_areas;
@@ -204,11 +209,17 @@ public:
         visualize_config.font = cv::FONT_HERSHEY_SCRIPT_SIMPLEX;
         visualize_config.font_scale = 0.7;
         visualize_config.thickness = 1;
+
+        hb_infer.load_model(model_path);
+        hb_infer.allocCachedMem();
         
     }
     
     // 析构函数
-    ~Tracker() = default;
+    ~Tracker() {
+        hb_infer.releaseMem();
+        hb_infer.releaseModel();
+    }
     
     cv::Rect getROI() const {
         return cv::Rect(roi_x1, roi_y1, image_w, image_h);
@@ -219,6 +230,7 @@ public:
     cv::Mat crop_and_pad_by_contour(const cv::Mat& image, const cv::Mat& blank, int target_size);
     cv::Mat createGridImage(const std::vector<cv::Mat>& images, int rows, int cols);
     vector<TrackedData> cv_process_frame(const cv::Mat& frame, bool debug);
+    vector<TrackedData> detection(const cv::Mat& frame);
     void tracking_group(const cv::Mat& frame, 
                         vector<TrackedData>& tracked_datavec, 
                         bool visualize);

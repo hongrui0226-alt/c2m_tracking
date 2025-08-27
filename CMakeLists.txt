@@ -56,6 +56,11 @@ find_package(OpenCV REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(Protobuf REQUIRED)
 
+set(DNN_PATH "/usr/include/dnn")
+set(DNN_LIB_PATH "/usr/lib/")
+include_directories(${DNN_PATH})
+link_directories(${DNN_LIB_PATH})
+
 set(PROTO_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/proto)
 set(PROTO_OUT_DIR ${CMAKE_CURRENT_BINARY_DIR})
 message("CMAKE_CURRENT_SOURCE_DIR in lib: ${CMAKE_CURRENT_SOURCE_DIR}")
@@ -86,14 +91,17 @@ link_directories(
 add_executable(CameraServer 
     src/CameraServer.cpp
     src/tracker.cpp
+    src/preprocess.cpp
+    src/postprocess.cpp
     ${PROTO_SRCS}
     ${PROTO_HDRS})
 
 if (ENABLE_TESTS)
     add_executable(tmp_http src/tmp_http.cpp)
-    add_executable(debug_track src/debug_track.cpp src/tracker.cpp)
-    add_executable(debug_cv src/debug_cv.cpp src/tracker.cpp)
+    add_executable(debug_track src/debug_track.cpp src/tracker.cpp src/preprocess.cpp src/postprocess.cpp)
+    add_executable(debug_cv src/debug_cv.cpp src/tracker.cpp src/preprocess.cpp src/postprocess.cpp)
     add_executable(debug_occlusion src/debug_occlusion.cpp)
+    add_executable(hb_infer src/hb_infer.cpp src/preprocess.cpp src/postprocess.cpp)
 endif()
 
 target_link_libraries(CameraServer
@@ -112,6 +120,7 @@ target_link_libraries(CameraServer
     cpp-httplib
     protobuf::libprotobuf
     gflags
+    dnn
 )
 
 if (ENABLE_TESTS)
@@ -130,6 +139,7 @@ if (ENABLE_TESTS)
         dl
         spdlog::spdlog
         gflags
+        dnn
         )
     target_link_libraries(debug_cv
         ${OpenCV_LIBS}
@@ -142,8 +152,14 @@ if (ENABLE_TESTS)
         dl
         spdlog::spdlog
         gflags
+        dnn
         )
     target_link_libraries(debug_occlusion
+        gflags
+        )
+    target_link_libraries(hb_infer
+        ${OpenCV_LIBS}
+        dnn
         gflags
         )
 endif()

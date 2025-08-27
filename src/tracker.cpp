@@ -368,6 +368,9 @@ vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame, bool debug=f
     cv::absdiff(blank_channels[0], frame_channels[0], diff_b);
     cv::absdiff(blank_channels[1], frame_channels[1], diff_g);
     cv::absdiff(blank_channels[2], frame_channels[2], diff_r);
+    cv::morphologyEx(diff_b, diff_b, cv::MORPH_OPEN, kernel, cv::Point(-1, -1), 1);
+    cv::morphologyEx(diff_g, diff_g, cv::MORPH_OPEN, kernel, cv::Point(-1, -1), 1);
+    cv::morphologyEx(diff_r, diff_r, cv::MORPH_OPEN, kernel, cv::Point(-1, -1), 1);
     cv::threshold(diff_b, mask_b, binary_threshold, 255, cv::THRESH_BINARY);
     cv::threshold(diff_g, mask_g, binary_threshold, 255, cv::THRESH_BINARY);
     cv::threshold(diff_r, mask_r, binary_threshold, 255, cv::THRESH_BINARY);
@@ -386,16 +389,16 @@ vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame, bool debug=f
     // cv::threshold(diff, thresh, binary_threshold, 255, cv::THRESH_BINARY);
     // cv2_threshold_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t6).count());
 
-    // 6. 形态学操作
-    auto t7 = high_resolution_clock::now();
-    cv::Mat fg_mask, bulred, eroded;
-    GaussianBlur(mask, bulred, cv::Size(5, 5), 0);
-    cv::erode(bulred, eroded, kernel, cv::Point(-1, -1), 1);
-    cv2_erode_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t7).count());
+    // // 6. 形态学操作
+    // auto t7 = high_resolution_clock::now();
+    // cv::Mat fg_mask, bulred, eroded;
+    // GaussianBlur(mask, bulred, cv::Size(5, 5), 0);
+    // cv::erode(bulred, eroded, kernel, cv::Point(-1, -1), 1);
+    // cv2_erode_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t7).count());
 
-    auto t8 = high_resolution_clock::now();
-    cv::dilate(eroded, fg_mask, kernel, cv::Point(-1, -1), 1);
-    cv2_dilate_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t8).count());
+    // auto t8 = high_resolution_clock::now();
+    // cv::dilate(eroded, fg_mask, kernel, cv::Point(-1, -1), 1);
+    // cv2_dilate_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t8).count());
 
     // // 高斯模糊减少噪声
     // cv::Mat blurred;
@@ -414,12 +417,13 @@ vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame, bool debug=f
     // 7. 轮廓检测
     auto t9 = high_resolution_clock::now();
     std::vector<std::vector<cv::Point>> contours;
-    cv::findContours(fg_mask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    cv::findContours(mask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
     cv2_find_counter_time.push_back(duration_cast<milliseconds>(high_resolution_clock::now() - t9).count());
     frame_logs.push_back(cv::format("Found %zu contours", contours.size()));  // add log
 
     if(debug) {
-        vector<cv::Mat> tmp_debug_imgs = {roi_frame, diff_b, diff_g, diff_r, mask, bulred, eroded, fg_mask};
+        // vector<cv::Mat> tmp_debug_imgs = {roi_frame, diff_b, diff_g, diff_r, mask, bulred, eroded, fg_mask};
+        vector<cv::Mat> tmp_debug_imgs = {roi_frame, diff_b, diff_g, diff_r, mask};
         cv::Mat debug_img = createGridImage(tmp_debug_imgs, 3, 3);
         cv_debug_images.push_back(debug_img);
         cv_debug_names.push_back(cv::format("%d.jpg", frame_count));
@@ -495,7 +499,6 @@ vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame, bool debug=f
         // output.copyTo(xy_areas[index].image);
         
         TrackedData data;
-        data.frame_id = 1;
         data.cx = cx;
         data.cy = cy;
         data.areas = static_cast<float>(area);
@@ -527,6 +530,51 @@ vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame, bool debug=f
     // print_time("cv2_find_counter_time", cv2_find_counter_time);
     // print_time("cv2_sobel_time", cv2_sobel_time);
     // std::cout << "cv_time: " << duration_cast<milliseconds>(high_resolution_clock::now() - start_time).count() << "ms\n";
+
+    return res_data;
+}
+
+vector<TrackedData> Tracker::detection(const cv::Mat& frame) { 
+    // TrackedData tracked_data;
+    vector<TrackedData> res_data;
+
+    // Infer and Postprocess to get detected results
+    hb_infer.infer(frame);
+    vector<DetectionResult> detection_results = hb_infer.postprocess(frame);
+    
+    // Filter empty detections
+    if (detection_results.empty()) {
+        cout << "Frame " << frame_count << " No object detected" << endl;
+        hb_infer.releaseTask();
+        return {};
+    }
+
+    // Process detections
+    for (auto& result : detection_results) { 
+        TrackedData tracked_data;
+        tracked_data.areas = result.rect.area();
+        tracked_data.cx = static_cast<int>(result.rect.x + result.rect.width / 2);
+        tracked_data.cy = static_cast<int>(result.rect.y + result.rect.height / 2);
+        int x_orig = static_cast<int>(result.rect.x * 3);
+        int y_orig = static_cast<int>((result.rect.y - 12) * 3);
+        int w_orig = static_cast<int>(result.rect.width * 3);
+        int h_orig = static_cast<int>(result.rect.height * 3);
+        if (x_orig < 0 || y_orig < 0) {
+            cout << "out of range" << endl;
+            continue;
+        }
+        if (x_orig + w_orig > frame.cols) {
+            w_orig = frame.cols - x_orig;
+        }
+        if (y_orig + h_orig > frame.rows) {
+            h_orig = frame.rows - y_orig;
+        }
+        cout << frame.size() << endl;
+        tracked_data.image = frame(cv::Rect(x_orig, y_orig, w_orig, h_orig));
+        res_data.push_back(tracked_data);
+    }
+
+    hb_infer.releaseTask();
 
     return res_data;
 }
@@ -1052,11 +1100,10 @@ void Tracker::tracking_group(const cv::Mat& frame,
         // 可视化部分（使用RAII和范围循环）
         if (visualize) {
             cv::Mat visualized_frame = frame.clone();
-            resize(visualized_frame, visualized_frame, cv::Size(640, 480));
+            resize(visualized_frame, visualized_frame, cv::Size(640, 360));
             
             for (const auto& info : current_frame_info) {
-                cv::Point origin_xy(info.xy[0] + roi_x1 - 10, 
-                                info.xy[1] + roi_y1 + 5);
+                cv::Point origin_xy(info.xy[0], info.xy[1]);
                 
                 if (info.id == 0) {  // 未追踪到
                     putText(visualized_frame, "x", origin_xy, 
@@ -1584,13 +1631,13 @@ void Tracker::tracking_group(const cv::Mat& frame,
     // Visualize the tracking process
     if (visualize) {
         cv::Mat visualized_frame = frame.clone();
-        resize(visualized_frame, visualized_frame, cv::Size(640, 480));
+        resize(visualized_frame, visualized_frame, cv::Size(640, 360));
         
         for (const auto& info : current_frame_info) {
-            cv::Point origin_xy(info.xy[0] + roi_x1 - 10, 
-                            info.xy[1] + roi_y1 + 5);
-            cv::Point posPut_xy(info.xy[0] + roi_x1 - 35, 
-                            info.xy[1] + roi_y1 + 25);
+            cv::Point origin_xy(info.xy[0], 
+                            info.xy[1]);
+            cv::Point posPut_xy(info.xy[0] - 35, 
+                            info.xy[1] + 25);
             
             if (info.state == -1) {  // 未追踪到
                 putText(visualized_frame, "x", origin_xy, 
@@ -2027,7 +2074,7 @@ void Tracker::drawFrameLogs(cv::Mat& image, const vector<std::string>& logs) {
 void Tracker::track(const cv::Mat& frame, bool visualize) {
     if (detected_flag) {  // 检测到有效帧后
         reset_each_frame();
-        vector<TrackedData> cv_res = cv_process_frame(frame, visualize);
+        vector<TrackedData> cv_res = detection(frame);
         if (cv_res.size() > 0) {
             // 检测到目标后，再执行tracking group
             tracking_group(frame, cv_res, visualize);
@@ -2060,7 +2107,7 @@ void Tracker::track(const cv::Mat& frame, bool visualize) {
                 cv::Rect(roi_x1, roi_y1, roi_x2-roi_x1, roi_y2-roi_y1)
             );
 
-            vector<TrackedData> cv_res = cv_process_frame(frame, visualize);
+            vector<TrackedData> cv_res = detection(frame);
             tracking_group(frame, cv_res, visualize);
             cout << "检测到有效帧" << endl;
         }
