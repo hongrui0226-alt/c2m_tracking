@@ -18,13 +18,13 @@
 
 // 模型的类别数量, 默认80
 // Number of classes in the model, default is 80
-#define CLASSES_NUM 5
+#define CLASSES_NUM 1
 // NMS的阈值, 默认0.45
 // Non-Maximum Suppression (NMS) threshold, default is 0.45
-#define NMS_THRESHOLD 0.4
+#define NMS_THRESHOLD 0.2
 // 分数阈值, 默认0.25
 // Score threshold, default is 0.25
-#define SCORE_THRESHOLD 0.2
+#define SCORE_THRESHOLD 0.1
 #define NMS_TOP_K 300
 // 控制回归部分离散化程度的超参数, 默认16
 // A hyperparameter that controls the discretization level of the regression part, default is 16

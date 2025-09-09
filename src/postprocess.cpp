@@ -345,7 +345,7 @@ std::vector<DetectionResult> hb_postprocess(hbDNNTensor* output, const cv::Mat& 
     // }
     cv::dnn::NMSBoxes(all_boxes, all_scores, SCORE_THRESHOLD, NMS_THRESHOLD, all_indices, 1.f, NMS_TOP_K);
 
-    std::cout << "\033[31m Post Process time = " << std::fixed << std::setprecision(2) << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - begin_time).count() / 1000.0 << " ms\033[0m" << std::endl;
+    // std::cout << "\033[31m Post Process time = " << std::fixed << std::setprecision(2) << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - begin_time).count() / 1000.0 << " ms\033[0m" << std::endl;
 
     for (std::vector<int>::iterator it = all_indices.begin(); it != all_indices.end(); ++it) {
         bboxes[all_clsIds[*it]].push_back(all_boxes[*it]);
@@ -388,14 +388,17 @@ std::vector<DetectionResult> hb_postprocess(hbDNNTensor* output, const cv::Mat& 
 
             // 8.5 打印检测信息
             // 8.5 Print detection information
-            std::cout << "(" << x1 << " " << y1 << " " << x2 << " " << y2 << "): \t" << text << std::endl;
+            // Debug
+            if (static_cast<int>(score * 100) < 30) {
+                std::cout << "(" << x1 << " " << y1 << " " << x2 << " " << y2 << "): \t" << text << std::endl;
+            } 
         }
     }
-    std::cout << "\033[31m Draw Result time = " << std::fixed << std::setprecision(2) << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - begin_time).count() / 1000.0 << " ms\033[0m" << std::endl;
+    // std::cout << "\033[31m Draw Result time = " << std::fixed << std::setprecision(2) << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - begin_time).count() / 1000.0 << " ms\033[0m" << std::endl;
     
-    // 保存结果
-    cv::imwrite("result.jpg", img);
-    cout << "Result saved to result.jpg" << endl;
+    // // 保存结果
+    // cv::imwrite("result.jpg", img);
+    // cout << "Result saved to result.jpg" << endl;
 
     // for (int cls_id = 0; cls_id < CLASSES_NUM; cls_id++) {
 

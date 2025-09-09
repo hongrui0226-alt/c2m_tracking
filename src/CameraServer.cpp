@@ -12,7 +12,6 @@ void CameraServer::create_serverloop(int port, httplib::Response& res) {
     if (port == cam1_server_port && running) {
         cout << "Starting recording on Camera 1..." << endl;
         camera_manager.startRecording(camera_manager.camera1);
-        cv::Mat bgr_img;
         bool over = false;
         int frame_count = 0;
 
@@ -33,6 +32,9 @@ void CameraServer::create_serverloop(int port, httplib::Response& res) {
                     cout << "over" << endl;
                     over = true;
                 }
+                yuv_copy.release();
+                bgr_img.release();
+                bgr_copy.release();
             } else {
                 this_thread::sleep_for(chrono::milliseconds(1));
             }
@@ -45,12 +47,16 @@ void CameraServer::create_serverloop(int port, httplib::Response& res) {
             Frame frame = camera_manager.getFrameQueue(camera_manager.camera1);
             timevals.push_back(frame.timestamp);
             cv::Mat yuv_copy = frame.image.clone();
+            cv::Mat bgr_img;
             cv::cvtColor(yuv_copy, bgr_img, cv::COLOR_YUV2BGR_NV12); // Decode NV12 to BGR
             cv::Mat bgr_copy = bgr_img.clone(); // 再拷贝一次BGR数据
             // video_writer.write(bgr_img);
             // cv::imwrite(cv::format("%d.png", frame_count), bgr_img);
             cam1_tracker.track(bgr_copy, true);
             frame_count++;
+            yuv_copy.release();
+            bgr_img.release();
+            bgr_copy.release();
         }
 
         cam1_tracker.post_process();
@@ -75,7 +81,6 @@ void CameraServer::create_serverloop(int port, httplib::Response& res) {
     } else if (port == cam2_server_port && running) {
         cout << "Starting recording on Camera 2..." << endl;
         camera_manager.startRecording(camera_manager.camera2);
-        cv::Mat bgr_img;
         bool over = false;
         int frame_count = 0;
 
@@ -95,6 +100,9 @@ void CameraServer::create_serverloop(int port, httplib::Response& res) {
                     cout << "over" << endl;
                     over = true;
                 }
+                yuv_copy.release();
+                bgr_img.release();
+                bgr_copy.release();
             } else {
                 this_thread::sleep_for(chrono::milliseconds(1));
             }
@@ -107,10 +115,14 @@ void CameraServer::create_serverloop(int port, httplib::Response& res) {
             Frame frame = camera_manager.getFrameQueue(camera_manager.camera2);
             timevals.push_back(frame.timestamp);
             cv::Mat yuv_copy = frame.image.clone();
+            cv::Mat bgr_img;
             cv::cvtColor(yuv_copy, bgr_img, cv::COLOR_YUV2BGR_NV12); // Decode NV12 to BGR
             cv::Mat bgr_copy = bgr_img.clone(); // 再拷贝一次BGR数据
             cam2_tracker.track(bgr_copy, true);
             frame_count++;
+            yuv_copy.release();
+            bgr_img.release();
+            bgr_copy.release();
         }
 
         cam2_tracker.post_process();

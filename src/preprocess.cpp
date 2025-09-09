@@ -30,7 +30,7 @@ cv::Mat letterbox(const cv::Mat& img, int32_t input_H, int32_t input_W) {
         cv::copyMakeBorder(resize_img, resize_img, y_shift, y_other, x_shift, x_other, cv::BORDER_CONSTANT, cv::Scalar(114, 114, 114));
         // cv::cvtColor(resize_img, resize_img, cv::COLOR_BGR2RGB);
 
-        std::cout << "\033[31m pre process (LetterBox) time = " << std::fixed << std::setprecision(2) << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - begin_time).count() / 1000.0 << " ms\033[0m" << std::endl;
+        // std::cout << "\033[31m pre process (LetterBox) time = " << std::fixed << std::setprecision(2) << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - begin_time).count() / 1000.0 << " ms\033[0m" << std::endl;
     }
     else if (PREPROCESS_TYPE == RESIZE_TYPE) // resize
     {
@@ -45,7 +45,7 @@ cv::Mat letterbox(const cv::Mat& img, int32_t input_H, int32_t input_W) {
         y_shift = 0;
         x_shift = 0;
 
-        std::cout << "\033[31m pre process (Resize) time = " << std::fixed << std::setprecision(2) << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - begin_time).count() / 1000.0 << " ms\033[0m" << std::endl;
+        // std::cout << "\033[31m pre process (Resize) time = " << std::fixed << std::setprecision(2) << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - begin_time).count() / 1000.0 << " ms\033[0m" << std::endl;
     }
     // std::cout << "y_scale = " << y_scale << ", ";
     // std::cout << "x_scale = " << x_scale << std::endl;

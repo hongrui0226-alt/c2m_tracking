@@ -258,11 +258,11 @@ public:
         int32_t data_size = input_H_ * input_W_ * 3 * 4;
         memcpy(input_ptr, img_ptr, data_size);
 
-        std::cout << "\033[31m (u8-128)->s8 time = " << 
-            std::fixed << std::setprecision(2) << 
-            std::chrono::duration_cast<std::chrono::microseconds>
-            (std::chrono::system_clock::now() - begin_time).count() / 1000.0 
-            << " ms\033[0m" << std::endl;
+        // std::cout << "\033[31m (u8-128)->s8 time = " << 
+        //     std::fixed << std::setprecision(2) << 
+        //     std::chrono::duration_cast<std::chrono::microseconds>
+        //     (std::chrono::system_clock::now() - begin_time).count() / 1000.0 
+        //     << " ms\033[0m" << std::endl;
 
         hbSysFlushMem(&input_.sysMem[0], HB_SYS_MEM_CACHE_CLEAN);
     }
@@ -310,11 +310,11 @@ public:
         hbSysFlushMem(&(output_[order[4]].sysMem[0]), HB_SYS_MEM_CACHE_INVALIDATE);
         hbSysFlushMem(&(output_[order[5]].sysMem[0]), HB_SYS_MEM_CACHE_INVALIDATE);
 
-        std::cout << "\033[31m forward time = " << 
-        std::fixed << std::setprecision(2) << 
-        std::chrono::duration_cast<std::chrono::microseconds>
-        (std::chrono::system_clock::now() - begin_time).count() / 1000.0 
-        << " ms\033[0m" << std::endl;
+        // std::cout << "\033[31m forward time = " << 
+        // std::fixed << std::setprecision(2) << 
+        // std::chrono::duration_cast<std::chrono::microseconds>
+        // (std::chrono::system_clock::now() - begin_time).count() / 1000.0 
+        // << " ms\033[0m" << std::endl;
     }
 
     vector<DetectionResult> postprocess(const cv::Mat& img) { 

@@ -503,6 +503,7 @@ vector<TrackedData> Tracker::cv_process_frame(const cv::Mat& frame, bool debug=f
         data.cy = cy;
         data.areas = static_cast<float>(area);
         output.copyTo(data.image);
+        output.release();
         res_data.push_back(data);
 
         effect_image_time.push_back(
@@ -544,7 +545,6 @@ vector<TrackedData> Tracker::detection(const cv::Mat& frame) {
     
     // Filter empty detections
     if (detection_results.empty()) {
-        cout << "Frame " << frame_count << " No object detected" << endl;
         hb_infer.releaseTask();
         return {};
     }
@@ -569,8 +569,7 @@ vector<TrackedData> Tracker::detection(const cv::Mat& frame) {
         if (y_orig + h_orig > frame.rows) {
             h_orig = frame.rows - y_orig;
         }
-        cout << frame.size() << endl;
-        tracked_data.image = frame(cv::Rect(x_orig, y_orig, w_orig, h_orig));
+        tracked_data.image = frame(cv::Rect(x_orig, y_orig, w_orig, h_orig)).clone();
         res_data.push_back(tracked_data);
     }
 
@@ -1229,9 +1228,11 @@ void Tracker::tracking_group(const cv::Mat& frame,
 
         for (size_t i = 0; i < sec_unmatched_a.size(); ++i) { 
             sec_unmatched_a[i] = unmatched_a[sec_unmatched_a[i]];
+            cout << "sec_unmatched_a[" << i << "] = " << sec_unmatched_a[i] << endl;  // Debug
         } 
         for (size_t i = 0; i < sec_unmatched_b.size(); ++i) { 
             sec_unmatched_b[i] = unmatched_b[sec_unmatched_b[i]];
+            cout << "sec_unmatched_b[" << i << "] = " << sec_unmatched_b[i] << endl;  // Debug
         } 
 
         unmatched_a = sec_unmatched_a;
@@ -2090,10 +2091,11 @@ void Tracker::track(const cv::Mat& frame, bool visualize) {
                 cout << "下落结束, 共 " << frame_count << " 帧" << endl;
             }
         }
+        cv_res.clear();
     }
     else {  // 未检测到有效帧
         if (invaild_num > 0) {  // 跳过前几个无效帧
-            blank_orig = frame;
+            blank_orig = frame.clone();
             // first_frame_flag = false;
             invaild_num--;
             return;
@@ -2102,14 +2104,15 @@ void Tracker::track(const cv::Mat& frame, bool visualize) {
         detected_flag = detect_block(frame, blank_orig);
         
         if (detected_flag) {
-            cv::resize(blank_orig, blank_resize, cv::Size(640, 480), cv::INTER_NEAREST);
-            blank_rect = blank_resize(
-                cv::Rect(roi_x1, roi_y1, roi_x2-roi_x1, roi_y2-roi_y1)
-            );
+            // cv::resize(blank_orig, blank_resize, cv::Size(640, 480), cv::INTER_NEAREST);
+            // blank_rect = blank_resize(
+            //     cv::Rect(roi_x1, roi_y1, roi_x2-roi_x1, roi_y2-roi_y1)
+            // );
 
             vector<TrackedData> cv_res = detection(frame);
             tracking_group(frame, cv_res, visualize);
             cout << "检测到有效帧" << endl;
+            cv_res.clear();
         }
         // else {
         //     blank_orig = frame;

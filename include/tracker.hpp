@@ -81,7 +81,6 @@ struct MatchResult {
     std::vector<size_t> unmatched_b;
 };
 
-// 结构化数据类型（替代numpy.dtype）
 struct TrackedData {
     int cx;
     int cy;
