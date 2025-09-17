@@ -559,17 +559,42 @@ vector<TrackedData> Tracker::detection(const cv::Mat& frame) {
         int y_orig = static_cast<int>((result.rect.y - 12) * 3);
         int w_orig = static_cast<int>(result.rect.width * 3);
         int h_orig = static_cast<int>(result.rect.height * 3);
-        if (x_orig < 0 || y_orig < 0) {
-            cout << "out of range" << endl;
+        // 检查原始尺寸是否合法
+        if (result.rect.width <= 0 || result.rect.height <= 0) {
+            cout << "Invalid rect size from detection!" << endl;
             continue;
+        }
+        // 裁剪 x/w
+        if (x_orig < 0) {
+            w_orig += x_orig;  // 把超出左边的部分从宽度中减去
+            x_orig = 0;
         }
         if (x_orig + w_orig > frame.cols) {
             w_orig = frame.cols - x_orig;
         }
+
+        // 裁剪 y/h
+        if (y_orig < 0) {
+            h_orig += y_orig;
+            y_orig = 0;
+        }
         if (y_orig + h_orig > frame.rows) {
             h_orig = frame.rows - y_orig;
         }
+
+        // 最终检查裁剪后尺寸是否 > 0
+        if (w_orig <= 0 || h_orig <= 0) {
+            cout << "ROI collapsed after clipping: " << w_orig << "x" << h_orig << endl;
+            continue;
+        }
+
+        if (reinterpret_cast<uintptr_t>(frame.data) % 8 != 0) {
+            printf("WARNING 1: Mat data not 8-byte aligned: %p\n", frame.data);
+        }
         tracked_data.image = frame(cv::Rect(x_orig, y_orig, w_orig, h_orig)).clone();
+        if (reinterpret_cast<uintptr_t>(tracked_data.image.data) % 8 != 0) {
+            printf("WARNING 2: Mat data not 8-byte aligned: %p\n", tracked_data.image.data);
+        }
         res_data.push_back(tracked_data);
     }
 
@@ -903,6 +928,28 @@ void Tracker::tracking_group(const cv::Mat& frame,
                             bool visualize=true) {
     // 当前帧没有数据
     if (tracked_datavec.empty()) {
+        // Last frame info should be add to untracked_info_dict.
+        for (auto& info : last_frame_info) {
+            // Update untracked last_frame_info
+            info.xy = {
+                info.xy[0] + info.motion[0],
+                info.xy[1] + info.motion[1]
+            };
+
+            // limit y position
+            if (info.xy[1] > 465) {
+                info.xy[1] = 465 * 2 - info.xy[1];
+                info.motion[1] = -info.motion[1];
+            } else if (info.xy[1] < 10) {
+                info.xy[1] = 10 + info.xy[1];
+                info.motion[1] = -info.motion[1];
+            }
+
+            // update x motion
+            info.motion[0] = static_cast<int>(-(vaild_threshold - info.xy[0]) * 0.05 - 35);
+
+            untracked_info_dict.push_back(info);  // TODO: update last info 
+        }
         // Update untracked_info_dict
         for (int i = 0; i < untracked_info_dict.size(); i++) {
             TrackXY tmp_xy = untracked_info_dict[i].xy;
@@ -914,9 +961,11 @@ void Tracker::tracking_group(const cv::Mat& frame,
 
             // limit y position
             if (untracked_info_dict[i].xy[1] > 465) {
-                untracked_info_dict[i].xy[1] = 465;
+                untracked_info_dict[i].xy[1] = 465*2 - untracked_info_dict[i].xy[1];
+                untracked_info_dict[i].motion[1] = -untracked_info_dict[i].motion[1];
             } else if (untracked_info_dict[i].xy[1] < 10) {
-                untracked_info_dict[i].xy[1] = 10;
+                untracked_info_dict[i].xy[1] = 10 + untracked_info_dict[i].xy[1];
+                untracked_info_dict[i].motion[1] = -untracked_info_dict[i].motion[1];
             }
             // update x motion
             untracked_info_dict[i].motion[0] = static_cast<int>(-(vaild_threshold - untracked_info_dict[i].xy[0]) * 0.05 - 35);
@@ -932,7 +981,7 @@ void Tracker::tracking_group(const cv::Mat& frame,
     current_frame_xy.clear();
     frame_logs.push_back(cv::format("Frame Count: %d", frame_count));
     
-    //  && !is_all_white(tracked_data.image)
+    // Convert tracked_data to current frame info
     for (auto& tracked_data : tracked_datavec) {
         if (tracked_data.cx < vaild_threshold && 
             tracked_data.cx > tail_threshold) {
@@ -946,6 +995,28 @@ void Tracker::tracking_group(const cv::Mat& frame,
     }
 
     if (current_frame_info.empty()) {
+        // Last frame info to be add to untracked_info_dict.
+        for (auto& info : last_frame_info) {
+            // Update untracked last_frame_info
+            info.xy = {
+                info.xy[0] + info.motion[0],
+                info.xy[1] + info.motion[1]
+            };
+
+            // limit y position
+            if (info.xy[1] > 465) {
+                info.xy[1] = 465 * 2 - info.xy[1];
+                info.motion[1] = -info.motion[1];
+            } else if (info.xy[1] < 10) {
+                info.xy[1] = 10 + info.xy[1];
+                info.motion[1] = -info.motion[1];
+            }
+
+            // update x motion
+            info.motion[0] = static_cast<int>(-(vaild_threshold - info.xy[0]) * 0.05 - 35);
+            
+            untracked_info_dict.push_back(info);  // TODO: update last info 
+        }
         // Update untracked_info_dict
         for (int i = 0; i < untracked_info_dict.size(); i++) {
             TrackXY tmp_xy = untracked_info_dict[i].xy;
@@ -957,9 +1028,11 @@ void Tracker::tracking_group(const cv::Mat& frame,
 
             // limit y position
             if (untracked_info_dict[i].xy[1] > 465) {
-                untracked_info_dict[i].xy[1] = 465;
+                untracked_info_dict[i].xy[1] = 465*2 - untracked_info_dict[i].xy[1];
+                untracked_info_dict[i].motion[1] = -untracked_info_dict[i].motion[1];
             } else if (untracked_info_dict[i].xy[1] < 10) {
-                untracked_info_dict[i].xy[1] = 10;
+                untracked_info_dict[i].xy[1] = 10 + untracked_info_dict[i].xy[1];
+                untracked_info_dict[i].motion[1] = -untracked_info_dict[i].motion[1];
             }
             // update x motion
             untracked_info_dict[i].motion[0] = static_cast<int>(-(vaild_threshold - untracked_info_dict[i].xy[0]) * 0.05 - 35);
@@ -971,11 +1044,10 @@ void Tracker::tracking_group(const cv::Mat& frame,
     }
 
     if (last_frame_info.empty()) {
-        cout << "frame_count: " << frame_count << endl;
-        cout << untracked_info_dict.size() << endl;
+        cout << "last frame info is empty, now frame_count: " << frame_count << endl;
         for (const auto& info : untracked_info_dict) {
             untracked_info_xy.push_back(info.xy);
-            cout << info.xy[0] << " " << info.xy[1] << endl;
+            cout << info.xy[0] << " " << info.xy[1] << endl;  // TODO: DEBUG
         }
         // Match points with untracked_info_dict xy
         auto [matches, unmatched_a, unmatched_b] = match_points(untracked_info_xy, current_frame_xy);
@@ -1088,9 +1160,11 @@ void Tracker::tracking_group(const cv::Mat& frame,
 
             // limit y position
             if (untracked_info_dict[i].xy[1] > 465) {
-                untracked_info_dict[i].xy[1] = 465;
+                untracked_info_dict[i].xy[1] = 465*2 - untracked_info_dict[i].xy[1];
+                untracked_info_dict[i].motion[1] = -untracked_info_dict[i].motion[1];
             } else if (untracked_info_dict[i].xy[1] < 10) {
-                untracked_info_dict[i].xy[1] = 10;
+                untracked_info_dict[i].xy[1] = 10 + untracked_info_dict[i].xy[1];
+                untracked_info_dict[i].motion[1] = -untracked_info_dict[i].motion[1];
             }
             // update x motion
             untracked_info_dict[i].motion[0] = static_cast<int>(-(vaild_threshold - untracked_info_dict[i].xy[0]) * 0.05 - 35);
@@ -1191,7 +1265,7 @@ void Tracker::tracking_group(const cv::Mat& frame,
             const auto& a_idx = unmatched_a[sec_a_idx];
             const auto& b_idx = unmatched_b[sec_b_idx];
             
-            if (b_idx == -1) {
+            if (b_idx == -1 || sec_b_idx == -1) {
                 // 未匹配到
                 continue;
             }
@@ -1219,6 +1293,9 @@ void Tracker::tracking_group(const cv::Mat& frame,
             current_frame_info[b_idx].state = state;
     
             // update imgs to save
+            if (reinterpret_cast<uintptr_t>(current_canvas.data) % 8 != 0) {
+                printf("WARNING 3: Mat data not 8-byte aligned: %p\n", current_canvas.data);
+            }
             img2save[id].images.push_back(current_canvas);
             img2save[id].names.push_back(
                 cv::format("%d_(%d,%d)_(%d,%d)_area(%.1f)_state(%d).png", 
@@ -1228,11 +1305,9 @@ void Tracker::tracking_group(const cv::Mat& frame,
 
         for (size_t i = 0; i < sec_unmatched_a.size(); ++i) { 
             sec_unmatched_a[i] = unmatched_a[sec_unmatched_a[i]];
-            cout << "sec_unmatched_a[" << i << "] = " << sec_unmatched_a[i] << endl;  // Debug
         } 
         for (size_t i = 0; i < sec_unmatched_b.size(); ++i) { 
             sec_unmatched_b[i] = unmatched_b[sec_unmatched_b[i]];
-            cout << "sec_unmatched_b[" << i << "] = " << sec_unmatched_b[i] << endl;  // Debug
         } 
 
         unmatched_a = sec_unmatched_a;
@@ -1252,7 +1327,25 @@ void Tracker::tracking_group(const cv::Mat& frame,
             frame_logs.push_back(
                 cv::format("UntrackLast: %d tracked only one but distance is error", last_id)
             );
-            last_frame_info[idx].xy[0] -= 40;   // 补足帧率不稳导致的位移偏差
+
+            // Update untracked last_frame_info
+            last_frame_info[idx].xy = {
+                last_frame_info[idx].xy[0] + last_frame_info[idx].motion[0],
+                last_frame_info[idx].xy[1] + last_frame_info[idx].motion[1]
+            };
+
+            // limit y position
+            if (last_frame_info[idx].xy[1] > 465) {
+                last_frame_info[idx].xy[1] = 465 * 2 - last_frame_info[idx].xy[1];
+                last_frame_info[idx].motion[1] = -last_frame_info[idx].motion[1];
+            } else if (last_frame_info[idx].xy[1] < 10) {
+                last_frame_info[idx].xy[1] = 10 + last_frame_info[idx].xy[1];
+                last_frame_info[idx].motion[1] = -last_frame_info[idx].motion[1];
+            }
+
+            // update x motion
+            last_frame_info[idx].motion[0] = static_cast<int>(-(vaild_threshold - last_frame_info[idx].xy[0]) * 0.05 - 35);
+
             untracked_info_dict.push_back(last_frame_info[idx]);
             continue;
         }
@@ -1261,6 +1354,25 @@ void Tracker::tracking_group(const cv::Mat& frame,
             frame_logs.push_back(
                 cv::format("UntrackLast: %d tracked untracked blocks, skip", last_id)
             );
+            
+            // Update untracked last_frame_info
+            last_frame_info[idx].xy = {
+                last_frame_info[idx].xy[0] + last_frame_info[idx].motion[0],
+                last_frame_info[idx].xy[1] + last_frame_info[idx].motion[1]
+            };
+
+            // limit y position
+            if (last_frame_info[idx].xy[1] > 465) {
+                last_frame_info[idx].xy[1] = 465 * 2 - last_frame_info[idx].xy[1];
+                last_frame_info[idx].motion[1] = -last_frame_info[idx].motion[1];
+            } else if (last_frame_info[idx].xy[1] < 10) {
+                last_frame_info[idx].xy[1] = 10 + last_frame_info[idx].xy[1];
+                last_frame_info[idx].motion[1] = -last_frame_info[idx].motion[1];
+            }
+
+            // update x motion
+            last_frame_info[idx].motion[0] = static_cast<int>(-(vaild_threshold - last_frame_info[idx].xy[0]) * 0.05 - 35);
+
             untracked_info_dict.push_back(last_frame_info[idx]);
             continue;
         }
@@ -1330,7 +1442,28 @@ void Tracker::tracking_group(const cv::Mat& frame,
             frame_logs.push_back(
                 cv::format("UntrackLast : Lost %d with min_dist %f", last_id, min_dist)
             );
+
+            // Update untracked last_frame_info
+            last_frame_info[idx].xy = {
+                last_frame_info[idx].xy[0] + last_frame_info[idx].motion[0],
+                last_frame_info[idx].xy[1] + last_frame_info[idx].motion[1]
+            };
+
+            // limit y position
+            if (last_frame_info[idx].xy[1] > 465) {
+                last_frame_info[idx].xy[1] = 465 * 2 - last_frame_info[idx].xy[1];
+                last_frame_info[idx].motion[1] = -last_frame_info[idx].motion[1];
+            } else if (last_frame_info[idx].xy[1] < 10) {
+                last_frame_info[idx].xy[1] = 10 + last_frame_info[idx].xy[1];
+                last_frame_info[idx].motion[1] = -last_frame_info[idx].motion[1];
+            }
+
+            // update x motion
+            last_frame_info[idx].motion[0] = static_cast<int>(-(vaild_threshold - last_frame_info[idx].xy[0]) * 0.05 - 35);
+
             untracked_info_dict.push_back(last_frame_info[idx]);
+            
+            // current_frame_info.push_back(last_frame_info[idx]);
         }
     }
 
@@ -1575,7 +1708,10 @@ void Tracker::tracking_group(const cv::Mat& frame,
             );
 
         }
-
+        // update imgs to save
+        if (reinterpret_cast<uintptr_t>(current_frame_info[idx].current_canvas.data) % 8 != 0) {
+            printf("WARNING 4: Mat data not 8-byte aligned: %p\n", current_frame_info[idx].current_canvas.data);
+        }
         img2save[current_frame_info[idx].id].images.push_back(current_frame_info[idx].current_canvas);
         img2save[current_frame_info[idx].id].names.push_back(
             cv::format("%d_(%d,%d)_(%d,%d)_area(%.1f)_state(%d).png", 
@@ -1621,9 +1757,11 @@ void Tracker::tracking_group(const cv::Mat& frame,
 
         // limit y position
         if (untracked_info_dict[i].xy[1] > 465) {
-            untracked_info_dict[i].xy[1] = 465;
+            untracked_info_dict[i].xy[1] = 465*2 - untracked_info_dict[i].xy[1];
+            untracked_info_dict[i].motion[1] = -untracked_info_dict[i].motion[1];
         } else if (untracked_info_dict[i].xy[1] < 10) {
-            untracked_info_dict[i].xy[1] = 10;
+            untracked_info_dict[i].xy[1] = 10 + untracked_info_dict[i].xy[1];
+            untracked_info_dict[i].motion[1] = -untracked_info_dict[i].motion[1];
         }
         // update x motion
         untracked_info_dict[i].motion[0] = static_cast<int>(-(vaild_threshold - untracked_info_dict[i].xy[0]) * 0.05 - 35);
@@ -2083,6 +2221,8 @@ void Tracker::track(const cv::Mat& frame, bool visualize) {
             // cout << "出现目标" << cv_res.size() << endl;
         }
         else {
+            // 即使是空也会更新untracked_info_dict
+            tracking_group(frame, cv_res, visualize);
             // 连续5帧未检测到目标，则认为下落结束
             undetected_frame_count++;
             if (undetected_frame_count == tolerance_undetected_num) {
