@@ -117,7 +117,6 @@ target_link_libraries(CameraServer
     dl
     curl
     spdlog::spdlog
-    cpp-httplib
     protobuf::libprotobuf
     gflags
     dnn
