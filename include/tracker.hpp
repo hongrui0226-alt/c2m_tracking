@@ -154,7 +154,7 @@ private:
     std::string result_dir;
     std::string visualize_dir;
     std::string cv_debug_dir;
-    std::string model_path = "yolo11n-modified.bin";
+    std::string model_path;
 
     // 检测器
     HBInfer hb_infer;
@@ -183,7 +183,7 @@ private:
 
 public:
     // 构造函数
-    Tracker() : 
+    Tracker(string model = "yolo11n-modified.bin") : 
         roi_x1(20), roi_y1(5), roi_x2(620), roi_y2(475),
         image_w(roi_x2 - roi_x1),
         image_h(roi_y2 - roi_y1),
@@ -199,6 +199,8 @@ public:
         total_frame(1),
         kmeans(2, 100, 42) {
         
+        model_path = model;
+
         right_width = static_cast<int>(check_length / scale_x);
         // std::cout << "right_width (after cast): " << right_width << std::endl;
         

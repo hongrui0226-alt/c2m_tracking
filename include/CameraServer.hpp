@@ -59,10 +59,11 @@ private:
     void initServerSocket(SocketInfo& socket_info);
 
 public:
-    CameraServer(int node_index, int cam1_server_port, int cam2_server_port) : 
+    CameraServer(int node_index, int cam1_server_port, int cam2_server_port, string model_path) : 
         cam1_server_port(cam1_server_port), 
         cam2_server_port(cam2_server_port), 
         node_index(node_index),
+        cam1_tracker(model_path), cam2_tracker(model_path),
         running(false) {
 
             svr1.Get("/get_data", [this, cam1_server_port](const httplib::Request&, httplib::Response& res) {

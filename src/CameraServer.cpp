@@ -1,6 +1,7 @@
 #include "CameraServer.hpp"
 
 DEFINE_string(process_folder, "/home/sunrise/qimeng/dataset/videos", "Process folder which is used to track");
+DEFINE_string(model_path, "yolo11n-modified.bin", "Model path");
 DEFINE_int32(node_index, 1, "Index of X5 server.");
 
 // 服务器主循环
@@ -781,7 +782,7 @@ int main(int argc, char** argv) {
     int cam1_port = 8085;
     int cam2_port = 8086;
     // int node_index = 1; // 节点索引
-    CameraServer server(FLAGS_node_index, cam1_port, cam2_port);
+    CameraServer server(FLAGS_node_index, cam1_port, cam2_port, FLAGS_model_path);
     server.start();
 
     // 主循环等待信号

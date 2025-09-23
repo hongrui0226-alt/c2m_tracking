@@ -2322,7 +2322,7 @@ void Tracker::track_FromVideo(const string& video_path) {
         track(frame, true);
         if (track_over_flag) break;
     }
-    save_results();
+    save_results(false);
     reset();
 
     auto end = std::chrono::high_resolution_clock::now();
@@ -2393,7 +2393,7 @@ void Tracker::track_FromImgs(const string& img_folder, bool cv_debug=false) {
         cout << "cv_debug_images is empty !" << endl;
     }
 
-    save_results();
+    save_results(false);
     reset();
 
     auto end = std::chrono::high_resolution_clock::now();
