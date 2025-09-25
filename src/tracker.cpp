@@ -1836,10 +1836,6 @@ void Tracker::save_results(bool save_error=true) {
     for (const auto& id : merged_ids) {
         ImageData& data = img2save[id];
 
-        // 创建文件夹
-        fs::create_directories(fs::path(result_dir) / ("c_" + std::to_string(id) + "_0"));
-        fs::create_directories(fs::path(result_dir) / ("c_" + std::to_string(id) + "_1"));
-
         vector<double> hsv_means;
         for (const auto& img : data.images) {
             // 1. 创建掩码：像素值 < 250 的区域
@@ -1876,10 +1872,17 @@ void Tracker::save_results(bool save_error=true) {
             
             if (merging_list[0] == "MultiOcclusionSpilt") {   // 发生多遮挡
                 int index = 0;
+                bool create_flag = true;
                 for (const auto& name : obj1_list) {
                     if (name == "xxxxx") {
                         index++;  // 不同类别分割
+                        create_flag = true;
                         continue;
+                    }
+                    if (create_flag) {
+                        string folder_index = "c_" + std::to_string(id) + cv::format("_%d", index);
+                        fs::create_directories(fs::path(result_dir) / folder_index);
+                        create_flag = false;
                     }
                     auto pos = std::find(data.names.begin(), data.names.end(), name);
                     // string id_str = "c_" + std::to_string(id) + cv::format("_%d", index);
