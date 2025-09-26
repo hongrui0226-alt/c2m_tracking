@@ -1891,6 +1891,10 @@ void Tracker::save_results(bool save_error=true) {
                                 data.images[pos - data.names.begin()]);
                 }
             } else {   // 发生二遮挡
+                // 创建文件夹
+                fs::create_directories(fs::path(result_dir) / ("c_" + std::to_string(id) + "_0"));
+                fs::create_directories(fs::path(result_dir) / ("c_" + std::to_string(id) + "_1"));
+
                 for (const auto& name : obj1_list) {
                     auto pos = std::find(data.names.begin(), data.names.end(), name);
                     cv::imwrite((fs::path(result_dir) / ("c_" + std::to_string(id) + "_0") / name).string(), 
