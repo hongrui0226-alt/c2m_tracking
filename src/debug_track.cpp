@@ -2,7 +2,7 @@
 #include "tracker.hpp"
 
 DEFINE_string(process_folder, "/home/sunrise/qimeng/dataset/videos", "Process folder which is used to track");
-DEFINE_string(model_path, "yolo11n-modified.bin", "Model path");
+DEFINE_string(model_path, "You should input model path", "Model path");
 
 int main(int argc, char** argv) {
     google::ParseCommandLineFlags(&argc, &argv, true);

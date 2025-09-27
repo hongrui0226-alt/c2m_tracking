@@ -1249,7 +1249,7 @@ void Tracker::tracking_group(const cv::Mat& frame,
     std::vector<TrackXY> unmatched_last_xy, unmatched_current_xy;
     std::vector<size_t> tmp_unmatched_a, tmp_unmatched_b;
     for (size_t i = 0; i < unmatched_a.size(); ++i) { 
-        unmatched_last_xy.push_back(last_frame_info[unmatched_a[i]].xy);
+        unmatched_last_xy.push_back(last_frame_xy[unmatched_a[i]]);
     }
     for (size_t i = 0; i < unmatched_b.size(); ++i) { 
         unmatched_current_xy.push_back(current_frame_info[unmatched_b[i]].xy);
