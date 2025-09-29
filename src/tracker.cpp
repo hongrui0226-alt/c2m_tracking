@@ -840,18 +840,41 @@ Tracker::occlusion_spilt(const vector<string>& name_list, bool color_similar = t
             string suffix_match_2 = multi_occlu_files[cons_frame_ids[0]][1].name.substr(pos_2);
 
             vector<string> obj1_list, obj2_list;
-            for (const auto& [frame_id, files] : multi_occlu_files) {
+            for (const auto& frame_id : cons_frame_ids) {
+                auto& files = multi_occlu_files[frame_id];
+                bool matched_1_flag = false;
+                bool matched_2_flag = false;
+                bool matched_error_flag = false;
+                string tmp_match, error_match; 
                 for (const auto& info : files) {
                     size_t tmp_pos = info.name.find("_state");
-                    string tmp_match = info.name.substr(tmp_pos);
+                    tmp_match = info.name.substr(tmp_pos);
                     if (tmp_match == suffix_match_1) {
                         obj1_list.push_back(info.name);
+                        matched_1_flag = true;
                     } else if (tmp_match == suffix_match_2) {
                         obj2_list.push_back(info.name);
+                        matched_2_flag = true;
                     } else {
-                        cout << "Match Error ! tmp_match: " << tmp_match << endl;
-                        cout << "suffix_match_1: " << suffix_match_1 << endl;
-                        cout << "suffix_match_2: " << suffix_match_2 << endl;
+                        matched_error_flag = true;
+                        error_match = tmp_match;
+                    }
+                }
+                if (matched_error_flag) {
+                    cout << "Match Error !" << endl;
+                    cout << "error_match: " << error_match << endl;
+                    cout << "suffix_match_1: " << suffix_match_1 << endl;
+                    cout << "suffix_match_2: " << suffix_match_2 << endl;
+                    obj1_list.clear();
+                    obj2_list.clear();
+                    if (!matched_1_flag) {
+                        suffix_match_1 = error_match;
+                    }
+                    else if (!matched_2_flag) {
+                        suffix_match_2 = error_match;
+                    }
+                    else {
+                        cout << "Matched not 1 and 2 !" << endl;
                     }
                 }
             }
